@@ -33,7 +33,8 @@ import lig
 # CONFIG
 # ─────────────────────────────────────────────────────────────
 load_dotenv()
-BOT_TOKEN  = "8585932649:AAHk3NPRfQvoBTBelEmGjQNF7AZfNi9-LHw"
+import os as _os
+BOT_TOKEN = _os.getenv("BOT_TOKEN", "8585932649:AAHk3NPRfQvoBTBelEmGjQNF7AZfNi9-LHw")
 ADMIN_IDS  = [6084870602]
 MIN_BET    = 100
 MAX_BET    = 50_000
