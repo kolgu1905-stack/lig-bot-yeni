@@ -22,7 +22,10 @@ import lig as lig_module
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-TOKEN    = os.getenv("LIG_BOT_TOKEN") or os.getenv("BOT_TOKEN")
+TOKEN = os.getenv("LIG_BOT_TOKEN") or os.getenv("BOT_TOKEN")
+if not TOKEN:
+    raise ValueError("LIG_BOT_TOKEN veya BOT_TOKEN environment variable eksik!")
+print(f"[TOKEN] Token yüklendi: ...{TOKEN[-6:]}")
 ADMIN_IDS = list(map(int, os.getenv("ADMIN_IDS", "6084870602").split(",")))
 
 def is_admin(uid): return uid in ADMIN_IDS
@@ -172,7 +175,7 @@ try:
     cmd_sat         = _bot_module.cmd_sat
     cmd_akademi     = _bot_module.cmd_akademi
     cmd_akademi_al  = _bot_module.cmd_akademi_al
-    cmd_antrenman   = _bot_module.cmd_antrenman
+    cmd_antrenman   = _bot_module.cmd_antren
     cmd_antrenor    = _bot_module.cmd_antrenor
     cmd_hoca_tut    = _bot_module.cmd_hoca_tut
     cmd_hoca_birak  = _bot_module.cmd_hoca_birak
