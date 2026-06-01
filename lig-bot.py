@@ -2624,6 +2624,15 @@ async def _notify_admin(context, text, parse_mode="Markdown"):
             pass
         break  # Sadece ilk admin
 
+
+def _get_halftime_coach_msg(t1, t2, g1, g2):
+    if g1 > g2:
+        return f"💪 {t1} hocası: Devam edin!"
+    elif g2 > g1:
+        return f"😤 {t2} hocası: Geri donelim!"
+    else:
+        return "🤝 İki hoca da değişiklik düşünüyor..."
+
 async def _live_match_simulation(context, team1_name, team1_squad, team1_form,
                                   team2_name, team2_squad, team2_form,
                                   t1_formation="4-3-3", t1_tactic="dengeli",
@@ -2703,20 +2712,28 @@ async def _live_match_simulation(context, team1_name, team1_squad, team1_form,
         if not halftime_done and minute >= 45:
             halftime_done = True
             ht_score = f"{current_g1} - {current_g2}"
-            ht_templates = [
-                f"⏸️ *İLK YARI BİTTİ!*\n\n"
-                f"┌─────────────────────┐\n"
-                f"│  {team1_name[:12].center(12)}  {current_g1} ┃ {current_g2}  {team2_name[:12].center(12)}  │\n"
-                f"└─────────────────────┘\n\n"
-                f"{'🔥 ' + team1_name + ' üstün ilk yarıda!' if current_g1 > current_g2 else '⚡ ' + team2_name + ' önde gidiyor!' if current_g2 > current_g1 else '⚖️ Berabere gidiyoruz!'}\n"
-                f"_İkinci yarı heyecanla başlıyor..._",
+            if current_g1 > current_g2:
+                ht_durum = f"🔥 {team1_name} üstün ilk yarıda!"
+            elif current_g2 > current_g1:
+                ht_durum = f"⚡ {team2_name} önde gidiyor!"
+            else:
+                ht_durum = "⚖️ Berabere gidiyoruz!"
 
+            ht_msg1 = (
+                f"⏸️ *İLK YARI BİTTİ!*\n\n"
+                f"┌──────────────────────┐\n"
+                f"│  {team1_name[:10].center(10)}  {current_g1} ┃ {current_g2}  {team2_name[:10].center(10)}  │\n"
+                f"└──────────────────────┘\n\n"
+                f"{ht_durum}\n"
+                f"_İkinci yarı heyecanla başlıyor..._"
+            )
+            ht_msg2 = (
                 f"📢 *SOYUNMA ODASI ZAMANI!*\n\n"
                 f"🕐 45 dakika oynadık\n"
                 f"📊 Skor: *{team1_name}* `{ht_score}` *{team2_name}*\n\n"
-                f"{'💪 ' + team1_name + " hocası: 'Devam edin!' " if current_g1 > current_g2 else '😤 ' + team2_name + " hocası: 'Geri dönelim!' " if current_g1 > current_g2 else '🤝 İki hoca da değişiklik düşünüyor...'}",
-            ]
-            await _send_to_broadcast_chats(context, _r.choice(ht_templates), category="lig")
+                f"{_get_halftime_coach_msg(team1_name, team2_name, current_g1, current_g2)}"
+            )
+            await _send_to_broadcast_chats(context, _r.choice([ht_msg1, ht_msg2]), category="lig")
             await asyncio.sleep(12)
 
         # Tempo yorumu (her 20 dakikada bir)
