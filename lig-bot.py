@@ -364,17 +364,6 @@ async def _live_match_simulation(context, team1_name, team1_squad, team1_form,
     elif g2 > g1: winner_txt = f"🏆 *{team2_name}* kazandı!"
     else: winner_txt = "🤝 *Beraberlik!*"
 
-    final_templates = [
-        f"🏁 *MAÇ BİTTİ!*\n"
-        f"━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"┌──────────────────────┐\n"
-        f"│  {team1_name[:10].center(10)}  {g1} ┃ {g2}  {team2_name[:10].center(10)}  │\n"
-        f"└──────────────────────┘\n\n"
-        f"{winner_txt}\n\n"
-        f"{'⚽ *Goller:*' + chr(10) + chr(10).join([f'  {s[chr(109)]}{chr(39)} {s[chr(112)]}' + (f' ({s[chr(97)]}asist:{s[chr(97)]})'  if s.get('assist') else '') for s in scorers.get('team1',[])+scorers.get('team2',[])]) if scorers.get('team1') or scorers.get('team2') else ''}\n"
-        f"{'⭐ *MVP:* _' + mvp + '_' if mvp else ''}",
-    ]
-
     # Daha temiz final mesajı
     final_msg = (
         f"🏁 *MAÇ BİTTİ!*\n"
