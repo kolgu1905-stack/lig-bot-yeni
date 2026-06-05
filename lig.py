@@ -351,9 +351,15 @@ def simulate_match_detailed(team1_name: str, team1_squad: List[Dict], team1_form
     Returns: (team1_goals, team2_goals, events, mvp, scorers)
     events: [(minute, type, team, player, detail), ...]
     """
-    # İlk 11 oluştur — en yüksek rating'liler
-    team1_starters = sorted(team1_squad, key=lambda x: -x["rating"])[:11]
-    team2_starters = sorted(team2_squad, key=lambda x: -x["rating"])[:11]
+    # İlk 11 oluştur — manuel seçim varsa onu kullan, yoksa rating'e göre
+    def pick_starters(squad):
+        manual = [p for p in squad if p.get("is_starter") == 1]
+        if len(manual) >= 11:
+            return manual[:11]
+        return sorted(squad, key=lambda x: -x["rating"])[:11]
+
+    team1_starters = pick_starters(team1_squad)
+    team2_starters = pick_starters(team2_squad)
 
     str1 = sum(p["rating"] for p in team1_starters) // max(len(team1_starters), 1)
     str2 = sum(p["rating"] for p in team2_starters) // max(len(team2_starters), 1)
@@ -553,8 +559,15 @@ def simulate_match_with_tactics(team1_name, team1_squad, team1_form, team1_forma
     """
     Taktik + diziliş etkili gelişmiş simülasyon.
     """
-    team1_starters = sorted(team1_squad, key=lambda x: -x["rating"])[:11]
-    team2_starters = sorted(team2_squad, key=lambda x: -x["rating"])[:11]
+    # Manuel İlk 11 varsa kullan, yoksa rating sırası
+    def pick_starters(squad):
+        manual = [p for p in squad if p.get("is_starter") == 1]
+        if len(manual) >= 11:
+            return manual[:11]
+        return sorted(squad, key=lambda x: -x["rating"])[:11]
+
+    team1_starters = pick_starters(team1_squad)
+    team2_starters = pick_starters(team2_squad)
 
     str1 = sum(p["rating"] for p in team1_starters) // max(len(team1_starters), 1)
     str2 = sum(p["rating"] for p in team2_starters) // max(len(team2_starters), 1)

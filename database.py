@@ -1715,12 +1715,12 @@ def injure_player(user_id: int, player_name: str, matches: int = 2):
         return matches
 
 def get_healthy_squad(user_id: int):
-    """Sakatlı olmayan oyuncular (maç oynayabilenler)."""
+    """Sakatlı olmayan oyuncular (maç oynayabilenler) — is_starter dahil."""
     p = ph()
     with connect() as conn:
         cur = conn.cursor()
         cur.execute(f"""
-            SELECT player_name, rating, pos FROM lig_squad
+            SELECT player_name, rating, pos, is_starter FROM lig_squad
             WHERE user_id={p} AND injury_matches=0
             ORDER BY rating DESC
         """, (user_id,))

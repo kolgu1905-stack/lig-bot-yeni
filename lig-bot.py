@@ -876,8 +876,8 @@ async def daily_match_job(context):
         if len(h1) < 7 or len(h2) < 7:
             print(f"[MAÇ] ⚠️ {t1name} ({len(h1)}) vs {t2name} ({len(h2)}) — kadro yetersiz")
             continue
-        s1 = [{"name": s[0], "rating": s[1], "pos": s[2]} for s in h1]
-        s2 = [{"name": s[0], "rating": s[1], "pos": s[2]} for s in h2]
+        s1 = [{"name": s[0], "rating": s[1], "pos": s[2], "is_starter": s[3] if len(s)>3 else 0} for s in h1]
+        s2 = [{"name": s[0], "rating": s[1], "pos": s[2], "is_starter": s[3] if len(s)>3 else 0} for s in h2]
         f1, tc1 = db.get_team_tactics(t1id)
         f2, tc2 = db.get_team_tactics(t2id)
         # Antrenör bonusu — oyuncu rating'lerine ekle
