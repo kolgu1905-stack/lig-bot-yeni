@@ -1,5 +1,5 @@
 """
-CUMHURİYETÇİLER LİGİ BOTU — Bağımsız Sürüm
+TÜRK BUDUN LİGİ BOTU — Bağımsız Sürüm
 Sadece lig komutları. Casino ile çakışma yok.
 """
 import os
@@ -54,7 +54,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     db.register_user(uid, update.effective_user.first_name)
     await update.message.reply_text(
-        "🏟️ *CUMHURİYETÇİLER LİGİ*\n\n"
+        "🏟️ *TÜRK BUDUN LİGİ*\n\n"
         "Takımını kur, oyuncuları transfer et, şampiyon ol!\n\n"
         "📋 /yardim — Tüm komutlar\n"
         "🏟️ /lig — Lig ekranı\n"
@@ -1275,7 +1275,7 @@ async def cmd_lig(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not team:
         return await update.message.reply_text(
             "╔══════════════════════╗\n"
-            "║  🏟️  CUMHURİYETÇİLER LİGİ  ║\n"
+            "║  🏟️  TÜRK BUDUN LİGİ  ║\n"
             "╚══════════════════════╝\n\n"
             "👋 Hoş geldin! Henüz bir takımın yok.\n\n"
             "🚀 Başlamak için:\n"
@@ -1340,7 +1340,7 @@ async def cmd_takim_kur(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
         return await update.message.reply_text(
             "💡 Kullanım: `/takim_kur <takim_ismi>`\n"
-            "Örnek: `/takim_kur Cumhuriyet FC`",
+            "Örnek: `/takim_kur Budun FC`",
             parse_mode="Markdown")
 
     team_name = " ".join(context.args)[:30]
@@ -1362,7 +1362,7 @@ async def cmd_takim_kur(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return await update.message.reply_text(
             "⚠️ *Bot sana DM atamıyor!*\n\n"
             "Takımını kurabilmen için önce bota özel mesaj atman gerek:\n\n"
-            "1️⃣ @CumhuriyetcilerEglenceBotu yaz\n"
+            "1️⃣ @cmhryteglencebot yaz\n"
             "2️⃣ */start* komutuyla bot'u aç\n"
             "3️⃣ Sonra buraya gel, tekrar `/takim_kur` yaz\n\n"
             "_Bu zorunlu çünkü maç hatırlatmaları, sakatlık bildirimleri vs. DM olarak gelir._",
@@ -3482,7 +3482,7 @@ async def cmd_sezon_sifirla(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"📊 Tüm puanlar sıfırlandı!\n"
                 f"🏆 Şampiyonluk yarışı tekrar başladı!\n"
                 f"⚽ Yeni fikstür: *{count} maç*\n\n"
-                f"💪 İyi şanslar Cumhuriyetçiler!"
+                f"💪 İyi şanslar Budunlular!"
             )
             await _send_to_broadcast_chats(context, duyuru, category="lig")
         else:
@@ -3540,6 +3540,188 @@ async def cmd_lig_sil(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"  • Diğer: {total - sum([deleted.get(k, 0) for k in ['team','squad','fixtures','offers','listings','loans','predictions']])}\n\n"
         f"💡 Casino hesabı korundu.",
         parse_mode="Markdown")
+
+async def cmd_lig_oyuncular(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Admin: Ligde kayıtlı tüm oyuncuları listele — ID, username, takım adı, LC."""
+    if not is_admin(update.effective_user.id):
+        return
+
+    teams = db.get_all_teams_ranked()
+    if not teams:
+        return await update.message.reply_text("❌ Ligde kayıtlı takım yok.")
+
+    # Sayfa sistemi: her sayfada 15 takım
+    page = 0
+    if context.args:
+        try: page = max(0, int(context.args[0]) - 1)
+        except: pass
+
+    per_page = 15
+    total = len(teams)
+    start = page * per_page
+    end   = start + per_page
+    slice_ = teams[start:end]
+
+    medals = ["🥇","🥈","🥉"]
+    text = (
+        f"╔══════════════════════╗\n"
+        f"║  📋  LİG OYUNCULARI  ║\n"
+        f"╚══════════════════════╝\n\n"
+        f"👥 Toplam: *{total}* takım\n"
+        f"📄 Sayfa: *{page+1}/{(total-1)//per_page+1}*\n\n"
+    )
+
+    for i, t in enumerate(slice_, start + 1):
+        uid_t, tname, w, d, l, gf, ga, pts = t
+        em = medals[i-1] if i <= 3 else f"{i}."
+        # LC bakiyesi
+        try:
+            lc = db.get_lc_balance(uid_t)
+        except:
+            lc = 0
+        text += f"{em} *{tname[:16]}*\n"
+        text += f"   🆔 `{uid_t}` | 💎 {lc:,} LC | 🏆 {pts}p\n\n"
+
+    if total > per_page:
+        text += f"💡 `/lig_oyuncular {page+2}` → sonraki sayfa\n"
+    text += f"\n🗑️ Çıkarmak için: `/lig_sil <user_id>`"
+
+    await update.message.reply_text(text, parse_mode="Markdown")
+
+
+async def cmd_lig_tam_sifirla(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Admin: TÜM ligi sıfırla — sezon 1'den başlat, tüm takımlar/veriler silinir."""
+    if not is_admin(update.effective_user.id):
+        return
+
+    if not (context.args and context.args[0] == "EVET"):
+        teams = db.get_all_teams_ranked()
+        team_count = len(teams) if teams else 0
+        return await update.message.reply_text(
+            f"⚠️ *TAM LİG SIFIRLAMA*\n\n"
+            f"🚨 Bu işlem geri alınamaz!\n\n"
+            f"📊 *SİLİNECEK HER ŞEY:*\n"
+            f"  • {team_count} takım ve tüm kadroları\n"
+            f"  • Tüm sezon geçmişi\n"
+            f"  • Şampiyon geçmişi\n"
+            f"  • Tüm fikstürler\n"
+            f"  • LC bakiyeler (sıfırlanır)\n"
+            f"  • Tüm teklifler, kiralıklar\n"
+            f"  • Tüm haberler, sosyal medya\n"
+            f"  • Tüm tahminler\n\n"
+            f"🆕 *Sonuç:* Sezon 1'den temiz başlangıç\n\n"
+            f"✅ Onaylamak için:\n"
+            f"`/lig_tam_sifirla EVET`",
+            parse_mode="Markdown")
+
+    msg = await update.message.reply_text("⏳ *Lig tamamen sıfırlanıyor...*\n\n`[          ]` %0", parse_mode="Markdown")
+
+    from database import connect, ph
+    p = ph()
+
+    # Her tablo AYRI connection ile siliniyor
+    # PostgreSQL'de bir tablo hata verince diğerleri etkilenmiyor
+    def _safe_delete(table: str) -> tuple[bool, str]:
+        try:
+            with connect() as conn:
+                cur = conn.cursor()
+                cur.execute(f"DELETE FROM {table}")
+                conn.commit()
+            return True, ""
+        except Exception as e:
+            return False, str(e)
+
+    tables_to_clear = [
+        "lig_squad",           # önce kadro (foreign key)
+        "lig_fixtures",
+        "lig_matches",
+        "lig_season_stats",
+        "lig_conversion",
+        "lig_coaches",
+        "lig_training",
+        "lig_contracts",
+        "player_vacation",
+        "player_loans",
+        "market_listings",
+        "player_offers",
+        "form_actions",
+        "social_reactions",
+        "lig_news",
+        "lig_predictions",
+        "lig_mvp_log",
+        "lig_teams",           # takımlar en son
+        "lig_seasons",         # sezonlar en son
+        "lig_champions",
+    ]
+
+    ok_count  = 0
+    err_list  = []
+    total_tbl = len(tables_to_clear)
+
+    for i, tbl in enumerate(tables_to_clear):
+        success, err = _safe_delete(tbl)
+        if success:
+            ok_count += 1
+        else:
+            err_list.append(f"{tbl}: {err[:40]}")
+
+        # Her 5 tabloda bir ilerleme göster
+        if i % 5 == 0:
+            pct = int((i / total_tbl) * 100)
+            bar = "█" * (pct // 10) + "░" * (10 - pct // 10)
+            try:
+                await msg.edit_text(
+                    f"⏳ *Sıfırlanıyor...*\n\n`[{bar}]` %{pct}\n_{tbl} temizlendi..._",
+                    parse_mode="Markdown")
+            except: pass
+
+    # Sezon 1 oluştur — ayrı connection
+    from datetime import datetime, timedelta
+    new_start = datetime.now()
+    new_end   = new_start + timedelta(days=30)
+    sezon_ok  = False
+    try:
+        with connect() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                f"INSERT INTO lig_seasons (season_no, start_date, end_date, is_active) "
+                f"VALUES ({p},{p},{p},1)",
+                (1, new_start.isoformat(), new_end.isoformat()))
+            conn.commit()
+        sezon_ok = True
+    except Exception as e:
+        err_list.append(f"Sezon1: {e}")
+
+    # Sonuç mesajı
+    result = (
+        f"✅ *LİG TAMAMEN SIFIRLANDI!*\n\n"
+        f"🗑️ *{ok_count}/{total_tbl}* tablo temizlendi\n"
+        f"{'✅' if sezon_ok else '❌'} Sezon 1 oluşturuldu\n"
+        f"📅 Bitiş: *{new_end.strftime('%d.%m.%Y')}*\n\n"
+        f"📋 *Sıradaki adımlar:*\n"
+        f"  1️⃣ Oyuncular `/takim_kur <isim>` ile kayıt olsun\n"
+        f"  2️⃣ `/fikstur_olustur` ile fikstür oluştur\n"
+        f"  3️⃣ Maçlar her gün 21:00'da otomatik başlar\n"
+    )
+    if err_list:
+        result += f"\n⚠️ *{len(err_list)} hata (tablo yoksa normaldir):*\n"
+        for e in err_list[:4]:
+            result += f"  _{e}_\n"
+
+    await msg.edit_text(result, parse_mode="Markdown")
+
+    # Gruba duyuru
+    try:
+        await _send_to_broadcast_chats(
+            context,
+            "🔄 *TÜRK BUDUN LİGİ YENİDEN BAŞLIYOR!*\n\n"
+            "🆕 *Sezon 1* — Herkes sıfırdan başlıyor!\n"
+            "⚽ Takımını kur: `/takim_kur <takım adı>`\n"
+            "💎 Başlangıç bütçesi: *500.000 LC*\n\n"
+            "🏆 Kim şampiyon olacak?",
+            category="lig")
+    except: pass
+
 
 async def cmd_lig_yayin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Bu konuyu/grubu lig mesajları için ayarla."""
@@ -3718,7 +3900,9 @@ def main():
         ("maclari_basla",   cmd_maclari_basla),
         ("sezon_bitir",     cmd_sezon_bitir),
         ("sezon_sifirla",   cmd_sezon_sifirla),
-        ("lig_sil",         cmd_lig_sil),
+        ("lig_sil",          cmd_lig_sil),
+        ("lig_oyuncular",   cmd_lig_oyuncular),
+        ("lig_tam_sifirla", cmd_lig_tam_sifirla),
         ("lig_yayin",       cmd_lig_yayin),
         ("casino_yayin",    cmd_casino_yayin),
         ("yayin_durum",     cmd_yayin_durum),
