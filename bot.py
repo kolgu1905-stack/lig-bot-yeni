@@ -1799,10 +1799,6 @@ async def cmd_duyuru(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "💡 Kullanım: `/duyuru <mesaj>`\nÖrnek: `/duyuru Bakım çalışması başlıyor!`",
             parse_mode="Markdown")
 
-    chat_id   = update.effective_chat.id
-    thread_id = update.message.message_thread_id if update.message.is_topic_message else None
-    is_private = update.effective_chat.type == "private"
-
     duyuru = (
         "╔══════════════════════╗\n"
         "║  📢  GAZİNO DUYURUSU  ║\n"
@@ -1812,63 +1808,38 @@ async def cmd_duyuru(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🎰 *Budun Eğlence Gazinosu*"
     )
 
-    # Komut mesajını sil (sessizce — başarısız olursa devam et)
+    sent_msg = None
+
+    # 1. reply_text ile gönder — thread/chat otomatik doğru hedeflenir
     try:
-        await update.message.delete()
+        sent_msg = await update.message.reply_text(duyuru, parse_mode="Markdown")
     except Exception as e:
-        logging.warning(f"Duyuru: komut silinemedi: {e}")
-
-    sent = False
-
-    # 1. Önce thread'e gönder (forum grubu)
-    if thread_id:
+        logging.warning(f"Duyuru Markdown hatası: {e}")
         try:
-            await context.bot.send_message(
-                chat_id=chat_id, message_thread_id=thread_id,
-                text=duyuru, parse_mode="Markdown")
-            sent = True
+            sent_msg = await update.message.reply_text(duyuru)
+        except Exception as e2:
+            logging.warning(f"Duyuru düz metin de başarısız: {e2}")
+
+    # 2. Başarılıysa komut mesajını sil
+    if sent_msg:
+        try:
+            await update.message.delete()
         except Exception as e:
-            logging.warning(f"Duyuru thread hatası: {e}")
-            try:
-                await context.bot.send_message(
-                    chat_id=chat_id, message_thread_id=thread_id, text=duyuru)
-                sent = True
-            except Exception as e2:
-                logging.warning(f"Duyuru thread düz metin hatası: {e2}")
-
-    # 2. Thread olmadan dene
-    if not sent:
+            logging.warning(f"Duyuru: komut silinemedi (önemsiz): {e}")
+    else:
+        # Hiç gönderemedik — admin'e DM ile bildir
         try:
             await context.bot.send_message(
-                chat_id=chat_id, text=duyuru, parse_mode="Markdown")
-            sent = True
+                chat_id=ADMIN_IDS[0],
+                text=f"❌ *Duyuru gönderilemedi!*\n\n"
+                     f"Sebep: Bot bu grupta mesaj gönderme yetkisi yok.\n\n"
+                     f"✅ Çözüm:\n"
+                     f"1. Botu gruba *admin* yap\n"
+                     f"2. Veya BotFather → Group Privacy → *Turn off*\n\n"
+                     f"📝 Mesaj içeriği:\n{msg_text}",
+                parse_mode="Markdown")
         except Exception as e:
-            logging.warning(f"Duyuru ana chat hatası: {e}")
-            try:
-                await context.bot.send_message(chat_id=chat_id, text=duyuru)
-                sent = True
-            except Exception as e2:
-                logging.warning(f"Duyuru düz metin hatası: {e2}")
-
-    # 3. Özel mesajla gönderme (sadece private chat'ten çalıştırıldıysa zaten orada)
-    if not sent and not is_private:
-        try:
-            await context.bot.send_message(
-                chat_id=ADMIN_ID, text=f"❌ Duyuru gönderilemedi!\n\nMesaj:\n{duyuru}")
-        except: pass
-        try:
-            await context.bot.send_message(
-                chat_id=update.effective_user.id,
-                text=f"❌ Duyuru gruba gönderilemedi!\n\n"
-                     f"Sebep: Bot grupta mesaj gönderme yetkisine sahip olmayabilir.\n"
-                     f"Çözüm: Botu gruba admin yap veya BotFather'da Group Privacy'yi kapat.")
-        except: pass
-
-    # 4. Başarılı ise yayın kanallarına da gönder
-    if sent:
-        try:
-            await _send_to_broadcast_chats(context, duyuru, category="casino")
-        except: pass
+            logging.warning(f"Admin DM gönderilemedi: {e}")
 
 async def cmd_reseteko(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id): return
