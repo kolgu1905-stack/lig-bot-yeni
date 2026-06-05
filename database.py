@@ -3460,28 +3460,39 @@ def is_player_already_owned(player_name: str) -> int:
 # TEK SAHİPLİ YILDIZ OYUNCULAR (sonraki sezondan itibaren)
 # ─────────────────────────────────────────────────────────────
 
-UNIQUE_OWNERSHIP_START_SEASON = 2  # 2. sezondan itibaren aktif
+UNIQUE_OWNERSHIP_START_SEASON = 1  # 1. sezondan itibaren aktif (TÜM oyuncular)
 
 def is_unique_ownership_active() -> bool:
-    """Aktif sezonda tek sahiplik açık mı?"""
-    season = get_active_season()
-    if not season: return False
-    season_no = season[0]
-    return season_no >= UNIQUE_OWNERSHIP_START_SEASON
+    """Aktif sezonda tek sahiplik açık mı? Her zaman True."""
+    return True
 
 def is_star_player(player_name: str) -> bool:
-    """Bu oyuncu yıldız (Top 30 rating 90+) mı?"""
-    try:
-        import lig as _lig
-        # Rating 90+ tüm oyuncular yıldız
-        for p in _lig.PLAYERS:
-            if p["name"] == player_name and p["rating"] >= 90:
-                return True
-        return False
-    except:
-        return False
+    """Her oyuncu benzersizdir — hepsi tek sahipli."""
+    return True
+
+def is_player_owned(player_name: str) -> int:
+    """Bu oyuncu zaten bir takımda mı? Sahip user_id döner, yoksa None."""
+    p = ph()
+    with connect() as conn:
+        cur = conn.cursor()
+        cur.execute(f"SELECT user_id FROM lig_squad WHERE player_name={p} LIMIT 1", (player_name,))
+        row = fetchone(cur)
+        return row[0] if row else None
+
+def get_owner_username(user_id: int) -> str:
+    """Kullanıcının Telegram adını döner."""
+    p = ph()
+    with connect() as conn:
+        cur = conn.cursor()
+        cur.execute(f"SELECT username FROM users WHERE user_id={p}", (user_id,))
+        row = fetchone(cur)
+        return row[0] if row else f"ID:{user_id}"
 
 def is_star_owned(player_name: str) -> int:
+    """Geriye dönük uyumluluk — is_player_owned'a yönlendir."""
+    return is_player_owned(player_name)
+
+def _legacy_star_owned(player_name: str) -> int:
     """Bu yıldız oyuncu zaten sahipli mi? Sahip user_id döner, yoksa None."""
     p = ph()
     with connect() as conn:

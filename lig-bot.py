@@ -64,34 +64,49 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def cmd_yardim(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     msg1 = (
-        "📋 LİG KOMUTLARI\n\n"
-        "BAŞLANGIÇ\n"
-        "/lig /takim_kur /takimim /form\n\n"
-        "TRANSFER\n"
-        "/market /transfer /sat /akademi /akademi_al\n\n"
-        "GELİŞİM\n"
-        "/antrenman /antrenor /hoca_tut /hoca_birak\n"
-        "/fizyo /motivasyon /tatil /kamp /kaptan\n\n"
-        "TAKTİK\n"
-        "/taktik /dizilis /taktik_sec\n\n"
-        "PAZAR\n"
-        "/teklif /teklif_kabul /teklif_red /teklif_karsi\n"
-        "/kirala /sat_pazar /pazar /pazardan_al\n\n"
-        "SIRALAMA\n"
-        "/lig_top /puandurumu /ligler /sampiyonlar\n\n"
-        "MAÇ\n"
-        "/fikstur /tahmin /rakip /haberler /sosyal\n\n"
-        "EKONOMİ\n"
-        "/kur /cevir /lc_bakiye /lc_kod"
+        "📋 *TÜRK BUDUN LİGİ — KOMUTLAR*\n\n"
+        "🏁 *BAŞLANGIÇ*\n"
+        "/lig /takim\\_kur /takimim /form\n\n"
+        "🛒 *TRANSFER MARKETİ*\n"
+        "/market — Tüm müsait oyuncular\n"
+        "/market GK/DEF/MID/FWD — Pozisyon filtresi\n"
+        "/market <isim> — Oyuncu ara\n"
+        "/transfer /sat /akademi /akademi\\_al\n\n"
+        "🤝 *OYUNCULAR ARASI*\n"
+        "/teklif /teklif\\_kabul /teklif\\_red\n"
+        "/teklif\\_karsi /kirala\n"
+        "/sat\\_pazar /pazar /pazardan\\_al\n\n"
+        "👔 *ANTRENÖR*\n"
+        "/antrenor /hoca\\_tut /hoca\\_birak\n\n"
+        "🏋️ *GELİŞİM*\n"
+        "/antrenman /fizyo /motivasyon\n"
+        "/tatil /kamp /kaptan\n\n"
+        "⚽ *İLK 11*\n"
+        "/ilk11 — Mevcut ilk 11'i gör\n"
+        "/ilk11\\_ekle /ilk11\\_cikar /ilk11\\_sifirla\n\n"
+        "⚙️ *TAKTİK*\n"
+        "/taktik /dizilis /taktik\\_sec\n\n"
+        "🏆 *SIRALAMA*\n"
+        "/lig\\_top /puandurumu /ligler /sampiyonlar\n\n"
+        "📅 *MAÇ*\n"
+        "/fikstur /tahmin /rakip /macbaslat\n"
+        "/haberler /sosyal\n\n"
+        "💱 *EKONOMİ*\n"
+        "/kur /cevir /lc\\_bakiye /lc\\_kod"
     )
-    await update.message.reply_text(msg1)
+    await update.message.reply_text(msg1, parse_mode="Markdown")
     if is_admin(uid):
         await update.message.reply_text(
-            "🔐 ADMIN\n\n"
-            "/lc_yukle /lc_dusur /lc_toplu_yukle /lc_kodolustur\n"
-            "/terfi_dusme /fikstur_olustur /maclari_basla\n"
-            "/sezon_bitir /sezon_sifirla /lig_sil\n"
-            "/lig_yayin /casino_yayin /yayin_durum"
+            "🔐 *ADMİN KOMUTLARI*\n\n"
+            "/lc\\_yukle /lc\\_dusur /lc\\_toplu\\_yukle\n"
+            "/lc\\_kodolustur /lig\\_sil\n"
+            "/lig\\_oyuncular — Tüm oyuncuları listele\n"
+            "/lig\\_tam\\_sifirla — Sezonu sıfırla\n"
+            "/terfi\\_dusme /fikstur\\_olustur\n"
+            "/maclari\\_basla /sezon\\_bitir /sezon\\_sifirla\n"
+            "/lig\\_yayin /casino\\_yayin\n"
+            "/yayin\\_test /yayin\\_durum",
+            parse_mode="Markdown"
         )
 
 # ════════════════════════════════════════════
@@ -108,14 +123,18 @@ def _get_halftime_coach_msg(t1, t2, g1, g2):
 
 async def _send_to_broadcast_chats(context, text, parse_mode="Markdown", category="lig"):
     """
-    Yayın chat'lerine ve adminlere gönder.
-    category: "lig" | "casino" — hangi konuya gönderileceğini belirler
-    KURAL: Her chat'e SADECE 1 mesaj gönderilir, çift gönderim yok.
+    Yayın chat'lerine gönder.
+    category: "lig" | "casino"
     """
     sent_to = set()
-    # Yeni sistem: BROADCAST_TOPICS (öncelikli)
+
+    if not BROADCAST_TOPICS and not LIG_BROADCAST_CHATS:
+        print(f"[YAYIN] ⚠️ Hiç yayın kanalı kayıtlı değil! /lig_yayin komutuyla kayıt et.")
+        return sent_to
+
     for chat_id, topics in list(BROADCAST_TOPICS.items()):
-        if chat_id in sent_to: continue
+        if chat_id in sent_to:
+            continue
         thread_id = topics.get(category)
         try:
             kwargs = {"chat_id": chat_id, "text": text, "parse_mode": parse_mode}
@@ -123,27 +142,28 @@ async def _send_to_broadcast_chats(context, text, parse_mode="Markdown", categor
                 kwargs["message_thread_id"] = thread_id
             await context.bot.send_message(**kwargs)
             sent_to.add(chat_id)
-        except Exception:
-            # Markdown parse hatası: düz metin dene
+            print(f"[YAYIN] ✅ {category} → chat {chat_id} thread {thread_id}")
+        except Exception as e1:
+            print(f"[YAYIN] ⚠️ Markdown hata chat {chat_id}: {e1} — düz metin deneniyor")
             try:
-                kwargs = {"chat_id": chat_id, "text": text}
+                kwargs2 = {"chat_id": chat_id, "text": text}
                 if thread_id is not None:
-                    kwargs["message_thread_id"] = thread_id
-                await context.bot.send_message(**kwargs)
+                    kwargs2["message_thread_id"] = thread_id
+                await context.bot.send_message(**kwargs2)
                 sent_to.add(chat_id)
-            except:
-                pass
-    # Eski sistem fallback (LIG_BROADCAST_CHATS) — sadece BROADCAST_TOPICS'te olmayanlara
+            except Exception as e2:
+                print(f"[YAYIN] ❌ Gönderilemedi chat {chat_id}: {e2}")
+
     for chat_id in list(LIG_BROADCAST_CHATS):
-        if chat_id in sent_to: continue
+        if chat_id in sent_to:
+            continue
         try:
             await context.bot.send_message(chat_id=chat_id, text=text, parse_mode=parse_mode)
             sent_to.add(chat_id)
-        except:
-            pass
-    # NOT: Admin DM fallback kaldırıldı.
-    # Yayın kanalı ayarlı değilse mesaj hiçbir yere gitmez (admin'i spam'lemez).
-    # Yayın kanalı ayarlamak için: /lig_yayin veya /casino_yayin
+            print(f"[YAYIN] ✅ fallback → chat {chat_id}")
+        except Exception as e:
+            print(f"[YAYIN] ❌ fallback hata chat {chat_id}: {e}")
+
     return sent_to
 
 async def _notify_admin(context, text, parse_mode="Markdown"):
@@ -988,7 +1008,12 @@ async def daily_match_job(context):
         # İlk 11'de oynayıp gol/asist atmayan oyunculara form -1 + sakatlık şansı
         injured_msgs = []
         for team_info in [t1, t2]:
-            starters = sorted(team_info["squad"], key=lambda x: -x["rating"])[:11]
+            # Manuel seçilmiş starter varsa onları kullan, yoksa top 11 rating
+            manual_starters = [p for p in team_info["squad"] if p.get("is_starter") == 1]
+            if len(manual_starters) >= 11:
+                starters = manual_starters[:11]
+            else:
+                starters = sorted(team_info["squad"], key=lambda x: -x["rating"])[:11]
             for p in starters:
                 key = (team_info["uid"], p["name"])
                 if key not in scorer_names and key not in assist_names:
@@ -1407,6 +1432,7 @@ async def cmd_takimim(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return await update.message.reply_text("❌ Önce `/takim_kur <isim>` ile takım kur!", parse_mode="Markdown")
 
     name, lc, formation, w, d, l, gf, ga = team
+    owner_name = db.get_owner_username(uid)
     squad = db.get_squad(uid)
 
     if not squad:
@@ -1428,6 +1454,7 @@ async def cmd_takimim(update: Update, context: ContextTypes.DEFAULT_TYPE):
     detail_map = {d[0]: d for d in detailed}  # name -> (name, rating, base_rating, pos, form, injury)
 
     text = f"📋 *{name}* — Kadro ({len(squad)}/15)\n"
+    text += f"👤 Sahip: *{owner_name}*\n"
     text += f"📐 Formasyon: *{formation}* | 💎 *{lc:,} LC*\n\n"
 
     for pos in ["GK", "DEF", "MID", "FWD"]:
@@ -1529,31 +1556,67 @@ async def cmd_market(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not team:
         return await update.message.reply_text("❌ Önce `/takim_kur <isim>` ile takım kur!", parse_mode="Markdown")
 
-    # Filtre: pozisyon
+    # Filtre: pozisyon veya arama
+    search_query = None
     if context.args and context.args[0].upper() in ["GK", "DEF", "MID", "FWD"]:
         pos = context.args[0].upper()
-        players = lig.get_players_by_position(pos, 25)
+        all_players = lig.get_players_by_position(pos, 999)
         pos_name = {"GK": "Kaleciler", "DEF": "Defans", "MID": "Orta Saha", "FWD": "Forvet"}[pos]
         title = f"🛒 *{pos_name} Marketi*"
+    elif context.args:
+        # Oyuncu ismi arama
+        search_query = " ".join(context.args).lower()
+        all_players = [p for p in lig.PLAYERS if search_query in p["name"].lower()]
+        title = f"🔍 *Arama: {' '.join(context.args)}*"
     else:
-        # Tüm oyuncular - rating'e göre sırala
-        players = sorted(lig.PLAYERS, key=lambda x: -x["rating"])[:30]
-        title = "🛒 *TRANSFER MARKETİ — Top 30*"
+        all_players = sorted(lig.PLAYERS, key=lambda x: -x["rating"])
+        title = "🛒 *TRANSFER MARKETİ*"
 
     lc = team[1]
-    text = f"{title}\n💎 Bütçen: *{lc:,} LC*\n\n"
 
-    for p in players:
+    # Sahipsiz oyuncuları filtrele ve listele
+    available = []
+    owned_count = 0
+    for p in all_players:
+        owner_id = db.is_player_owned(p["name"])
+        if owner_id is None:
+            available.append(p)
+        elif owner_id == uid:
+            pass  # Zaten kadroda, gösterme
+        else:
+            owned_count += 1
+
+    if not available:
+        return await update.message.reply_text(
+            f"😔 *Müsait oyuncu yok!*\n\n"
+            f"Bu pozisyondaki tüm oyuncular başka takımlarda.\n"
+            f"💡 `/pazar` ile diğer takımların ilanlarına bak.",
+            parse_mode="Markdown")
+
+    # İlk 25'i göster
+    show = available[:25]
+    text = f"{title}\n💎 Bütçen: *{lc:,} LC*"
+    if owned_count > 0:
+        text += f" | 🔒 {owned_count} oyuncu başka takımda\n\n"
+    else:
+        text += "\n\n"
+
+    pos_em = {"GK": "🧤", "DEF": "🛡️", "MID": "⚙️", "FWD": "⚔️"}
+    for p in show:
         price = lig.get_player_price(p["rating"])
         afford = "✅" if lc >= price else "❌"
-        pos_em = {"GK": "🧤", "DEF": "🛡️", "MID": "⚙️", "FWD": "⚔️"}[p["pos"]]
-        text += f"{afford} {pos_em} *{p['name']}* `{p['rating']}` — `{price:,}`\n"
+        text += f"{afford} {pos_em[p['pos']]} *{p['name']}* `{p['rating']}` — `{price:,}`\n"
+
+    if len(available) > 25:
+        text += f"\n_...ve {len(available)-25} oyuncu daha_\n"
 
     text += "\n━━━━━━━━━━━━━━━━━━━━━━\n"
-    text += "💡 `/transfer <oyuncu_adi>` ile satın al\n"
-    text += "🔍 `/market GK/DEF/MID/FWD` ile filtrele"
+    text += "💡 `/transfer <oyuncu adı>` ile satın al\n"
+    text += "🔍 `/market GK/DEF/MID/FWD` pozisyon filtresi\n"
+    text += "🔍 `/market messi` isim araması"
 
     await update.message.reply_text(text, parse_mode="Markdown")
+
 
 async def cmd_transfer(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
@@ -1567,7 +1630,26 @@ async def cmd_transfer(update: Update, context: ContextTypes.DEFAULT_TYPE):
     player_name = " ".join(context.args)
     player = lig.get_player_by_name(player_name)
     if not player:
-        return await update.message.reply_text(f"❌ *{player_name}* bulunamadı. `/market` ile listeyi gör.", parse_mode="Markdown")
+        return await update.message.reply_text(
+            f"❌ *{player_name}* bulunamadı.\n💡 `/market` ile listeyi gör veya ismi kontrol et.",
+            parse_mode="Markdown")
+
+    # ── BENZERSİZ SAHİPLİK KONTROLÜ ──
+    owner_id = db.is_player_owned(player["name"])
+    if owner_id and owner_id != uid:
+        owner_team = db.get_team(owner_id)
+        owner_name = db.get_owner_username(owner_id)
+        owner_team_name = owner_team[0] if owner_team else "Bilinmeyen Takım"
+        return await update.message.reply_text(
+            f"🔒 *{player['name']}* başka bir takımda!\n\n"
+            f"👤 Sahibi: *{owner_name}* ({owner_team_name})\n\n"
+            f"💡 Bu oyuncuyu almak için:\n"
+            f"  • Sahibine `/teklif` yap\n"
+            f"  • Veya `/market` ile başka oyuncu bak",
+            parse_mode="Markdown")
+
+    if owner_id == uid:
+        return await update.message.reply_text(f"❌ *{player['name']}* zaten kadronda!", parse_mode="Markdown")
 
     price = lig.get_player_price(player["rating"])
     lc = team[1]
@@ -1594,10 +1676,11 @@ async def cmd_transfer(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"{pos_em} *{player['name']}* (`{player['rating']}`)\n"
         f"💸 Ödenen: *{price:,} LC*\n"
         f"💎 Yeni bütçe: *{new_balance:,} LC*\n"
-        f"👥 Kadro: *{len(squad)+1}/15*",
+        f"👥 Kadro: *{len(squad)+1}/15*\n\n"
+        f"🔒 Bu oyuncu artık sadece senin takımında!",
         parse_mode="Markdown")
 
-    # Önemli transfer haberi (rating 85+)
+    # Transfer haberi (rating 85+)
     if player["rating"] >= 85:
         team_data = db.get_team(uid)
         team_name = team_data[0] if team_data else "Bilinmeyen"
@@ -3542,7 +3625,7 @@ async def cmd_lig_sil(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown")
 
 async def cmd_lig_oyuncular(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Admin: Ligde kayıtlı tüm oyuncuları listele — ID, username, takım adı, LC."""
+    """Admin: Ligde kayıtlı tüm oyuncuları listele — username, ID, takım, LC."""
     if not is_admin(update.effective_user.id):
         return
 
@@ -3550,43 +3633,207 @@ async def cmd_lig_oyuncular(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not teams:
         return await update.message.reply_text("❌ Ligde kayıtlı takım yok.")
 
-    # Sayfa sistemi: her sayfada 15 takım
     page = 0
     if context.args:
         try: page = max(0, int(context.args[0]) - 1)
         except: pass
 
-    per_page = 15
-    total = len(teams)
-    start = page * per_page
-    end   = start + per_page
-    slice_ = teams[start:end]
+    per_page = 10
+    total    = len(teams)
+    start    = page * per_page
+    slice_   = teams[start:start + per_page]
+    total_pages = max(1, (total - 1) // per_page + 1)
 
-    medals = ["🥇","🥈","🥉"]
+    medals = ["🥇", "🥈", "🥉"]
     text = (
         f"╔══════════════════════╗\n"
         f"║  📋  LİG OYUNCULARI  ║\n"
         f"╚══════════════════════╝\n\n"
-        f"👥 Toplam: *{total}* takım\n"
-        f"📄 Sayfa: *{page+1}/{(total-1)//per_page+1}*\n\n"
+        f"👥 Toplam: *{total}* takım  |  Sayfa: *{page+1}/{total_pages}*\n\n"
     )
 
     for i, t in enumerate(slice_, start + 1):
         uid_t, tname, w, d, l, gf, ga, pts = t
         em = medals[i-1] if i <= 3 else f"{i}."
-        # LC bakiyesi
-        try:
-            lc = db.get_lc_balance(uid_t)
-        except:
-            lc = 0
-        text += f"{em} *{tname[:16]}*\n"
-        text += f"   🆔 `{uid_t}` | 💎 {lc:,} LC | 🏆 {pts}p\n\n"
+        try:    lc = db.get_lc_balance(uid_t)
+        except: lc = 0
+        username     = db.get_owner_username(uid_t)
+        squad_count  = len(db.get_squad(uid_t))
+        text += (
+            f"{em} *{tname[:18]}*\n"
+            f"   👤 *{username}*\n"
+            f"   🆔 `{uid_t}` | 💎 {lc:,} LC\n"
+            f"   🏆 {pts}p ({w}G {d}B {l}M) | 👥 {squad_count} oyuncu\n\n"
+        )
 
-    if total > per_page:
-        text += f"💡 `/lig_oyuncular {page+2}` → sonraki sayfa\n"
+    nav = []
+    if page > 0:          nav.append(f"`/lig_oyuncular {page}` ←")
+    if start+per_page < total: nav.append(f"→ `/lig_oyuncular {page+2}`")
+    if nav: text += " | ".join(nav) + "\n"
     text += f"\n🗑️ Çıkarmak için: `/lig_sil <user_id>`"
-
     await update.message.reply_text(text, parse_mode="Markdown")
+
+
+async def cmd_ilk11(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Mevcut ilk 11'i göster."""
+    uid = update.effective_user.id
+    if not db.get_team(uid):
+        return await update.message.reply_text("❌ Önce `/takim_kur <isim>` ile takım kur!", parse_mode="Markdown")
+
+    squad = db.get_squad(uid)
+    if not squad:
+        return await update.message.reply_text("❌ Kadron boş! `/market` ile oyuncu al.", parse_mode="Markdown")
+
+    starters = [p for p in squad if p[3] == 1]
+    bench    = [p for p in squad if p[3] == 0]
+    auto_msg = ""
+
+    if not starters:
+        sorted_sq = sorted(squad, key=lambda x: -x[1])
+        starters  = sorted_sq[:11]
+        bench     = sorted_sq[11:]
+        auto_msg  = "⚙️ _Otomatik seçim (rating'e göre)_\n\n"
+
+    pos_em   = {"GK":"🧤","DEF":"🛡️","MID":"⚙️","FWD":"⚔️"}
+    pos_name = {"GK":"Kale","DEF":"Defans","MID":"Orta Saha","FWD":"Forvet"}
+
+    by_pos = {"GK":[],"DEF":[],"MID":[],"FWD":[]}
+    for p in starters:
+        if p[2] in by_pos: by_pos[p[2]].append(p)
+
+    text = (
+        f"╔══════════════════════╗\n"
+        f"║  ⚽  İLK 11  ║\n"
+        f"╚══════════════════════╝\n\n"
+        f"{auto_msg}"
+    )
+    for pos in ["GK","DEF","MID","FWD"]:
+        if by_pos[pos]:
+            text += f"{pos_em[pos]} *{pos_name[pos]}:*\n"
+            for p in by_pos[pos]:
+                text += f"  • {p[0]}  `{p[1]}`\n"
+            text += "\n"
+
+    if bench:
+        text += "🪑 *Yedekler:*\n"
+        for p in bench[:4]:
+            text += f"  • {p[0]} `{p[1]}` ({p[2]})\n"
+
+    text += (
+        "\n━━━━━━━━━━━━━━━━━━━━━━\n"
+        "💡 `/ilk11_ekle <oyuncu>` — ekle\n"
+        "💡 `/ilk11_cikar <oyuncu>` — çıkar\n"
+        "💡 `/ilk11_sifirla` — otomatik moda dön"
+    )
+    await update.message.reply_text(text, parse_mode="Markdown")
+
+
+async def cmd_ilk11_ekle(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Oyuncuyu ilk 11'e ekle (is_starter=1)."""
+    uid = update.effective_user.id
+    if not db.get_team(uid):
+        return await update.message.reply_text("❌ Önce takım kur!", parse_mode="Markdown")
+    if not context.args:
+        return await update.message.reply_text("💡 `/ilk11_ekle <oyuncu adı>`", parse_mode="Markdown")
+
+    player_name = " ".join(context.args)
+    squad = db.get_squad(uid)
+    target = next((p for p in squad if player_name.lower() in p[0].lower()), None)
+    if not target:
+        return await update.message.reply_text(f"❌ *{player_name}* kadronda yok!", parse_mode="Markdown")
+
+    starters = [p for p in squad if p[3] == 1]
+    if len(starters) >= 11:
+        return await update.message.reply_text(
+            f"❌ İlk 11 dolu! ({len(starters)}/11)\n`/ilk11_cikar <oyuncu>` ile yer aç.",
+            parse_mode="Markdown")
+    if target[2] == "GK" and any(p[2]=="GK" for p in starters):
+        return await update.message.reply_text(
+            "❌ Zaten bir kaleci var! Önce onu çıkar.", parse_mode="Markdown")
+    if target[3] == 1:
+        return await update.message.reply_text(
+            f"❌ *{target[0]}* zaten ilk 11'de!", parse_mode="Markdown")
+
+    from database import connect, ph as _ph
+    _p = _ph()
+    with connect() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            f"UPDATE lig_squad SET is_starter=1 WHERE user_id={_p} AND LOWER(player_name)=LOWER({_p})",
+            (uid, target[0]))
+        conn.commit()
+
+    pos_em = {"GK":"🧤","DEF":"🛡️","MID":"⚙️","FWD":"⚔️"}.get(target[2],"⚽")
+    await update.message.reply_text(
+        f"✅ *{target[0]}* ilk 11'e eklendi!\n"
+        f"{pos_em} {target[2]} | `{target[1]}` rating\n"
+        f"👥 İlk 11: *{len(starters)+1}/11*",
+        parse_mode="Markdown")
+
+
+async def cmd_ilk11_cikar(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Oyuncuyu ilk 11'den çıkar (is_starter=0)."""
+    uid = update.effective_user.id
+    if not db.get_team(uid):
+        return await update.message.reply_text("❌ Önce takım kur!", parse_mode="Markdown")
+    if not context.args:
+        return await update.message.reply_text("💡 `/ilk11_cikar <oyuncu adı>`", parse_mode="Markdown")
+
+    player_name = " ".join(context.args)
+    squad  = db.get_squad(uid)
+    target = next((p for p in squad if player_name.lower() in p[0].lower()), None)
+    if not target:
+        return await update.message.reply_text(f"❌ *{player_name}* kadronda yok!", parse_mode="Markdown")
+
+    from database import connect, ph as _ph
+    _p = _ph()
+    with connect() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            f"UPDATE lig_squad SET is_starter=0 WHERE user_id={_p} AND LOWER(player_name)=LOWER({_p})",
+            (uid, target[0]))
+        conn.commit()
+
+    await update.message.reply_text(
+        f"✅ *{target[0]}* ilk 11'den çıkarıldı → yedek.", parse_mode="Markdown")
+
+
+async def cmd_ilk11_sifirla(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """İlk 11 seçimini sıfırla — otomatik moda dön."""
+    uid = update.effective_user.id
+    if not db.get_team(uid):
+        return await update.message.reply_text("❌ Önce takım kur!", parse_mode="Markdown")
+
+    from database import connect, ph as _ph
+    _p = _ph()
+    with connect() as conn:
+        cur = conn.cursor()
+        cur.execute(f"UPDATE lig_squad SET is_starter=0 WHERE user_id={_p}", (uid,))
+        conn.commit()
+
+    await update.message.reply_text(
+        "✅ *İlk 11 sıfırlandı!*\n"
+        "Artık en yüksek ratingli 11 oyuncu otomatik seçilir.",
+        parse_mode="Markdown")
+
+
+async def cmd_macbaslat(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Admin: Maçları hemen başlat. Herkes: Ne zaman başlıyor?"""
+    uid = update.effective_user.id
+    if not is_admin(uid):
+        return await update.message.reply_text(
+            "⚽ *MAÇLAR NE ZAMAN BAŞLIYOR?*\n\n"
+            "Her gün saat *21:00* otomatik başlar.\n"
+            "📅 `/fikstur` ile bugünkü maçları gör.\n"
+            "🎯 `/tahmin` ile 20:30-21:00 arası tahmin yap!",
+            parse_mode="Markdown")
+
+    msg = await update.message.reply_text("⚽ *Maçlar başlatılıyor...*", parse_mode="Markdown")
+    try:
+        await daily_match_job(context)
+        await msg.edit_text("✅ *Bugünkü maçlar oynandı!*", parse_mode="Markdown")
+    except Exception as e:
+        await msg.edit_text(f"❌ Hata: `{e}`", parse_mode="Markdown")
 
 
 async def cmd_lig_tam_sifirla(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -3727,22 +3974,72 @@ async def cmd_lig_yayin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Bu konuyu/grubu lig mesajları için ayarla."""
     if not is_admin(update.effective_user.id):
         return
-    chat_id = update.effective_chat.id
+    chat_id   = update.effective_chat.id
     thread_id = update.message.message_thread_id if update.message.is_topic_message else None
 
+    # Bellekte kaydet
     if chat_id not in BROADCAST_TOPICS:
         BROADCAST_TOPICS[chat_id] = {"lig": None, "casino": None}
     BROADCAST_TOPICS[chat_id]["lig"] = thread_id
     LIG_BROADCAST_CHATS.add(chat_id)
-    # DB'ye kalıcı kaydet
-    db.save_broadcast_setting(chat_id, "lig", thread_id)
 
-    where = f"bu konuya (thread {thread_id})" if thread_id else "ana sohbete"
+    # DB'ye kalıcı kaydet
+    try:
+        db.save_broadcast_setting(chat_id, "lig", thread_id)
+        db_ok = "✅ DB kaydı başarılı"
+    except Exception as e:
+        db_ok = f"⚠️ DB kayıt hatası: {e}"
+
+    where = f"konu thread `{thread_id}`" if thread_id else "ana sohbet"
     await update.message.reply_text(
-        f"✅ *Lig yayın kanalı ayarlandı!*\n"
-        f"📺 Maç ve lig mesajları {where} gelecek.\n"
-        f"💾 Kalıcı kaydedildi.",
+        f"✅ *Lig yayın kanalı ayarlandı!*\n\n"
+        f"📺 *Nereye gidecek:* {where}\n"
+        f"💾 {db_ok}\n"
+        f"🆔 Chat ID: `{chat_id}`\n\n"
+        f"📋 *Buraya gelecek mesajlar:*\n"
+        f"  • Günlük maç önizleme (10:00)\n"
+        f"  • Maç öncesi analiz (20:30)\n"
+        f"  • Canlı maç yayını (21:00)\n"
+        f"  • Maç sonuçları & haberler\n"
+        f"  • Sezon ödülleri\n\n"
+        f"💡 Test için: `/yayin_test`",
         parse_mode="Markdown")
+
+    print(f"[YAYIN] ✅ Lig kanalı ayarlandı: chat={chat_id} thread={thread_id}")
+
+
+async def cmd_yayin_test(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Admin: Yayın kanalına test mesajı gönder."""
+    if not is_admin(update.effective_user.id):
+        return
+
+    if not BROADCAST_TOPICS and not LIG_BROADCAST_CHATS:
+        return await update.message.reply_text(
+            "❌ *Yayın kanalı ayarlanmamış!*\n\n"
+            "📋 Önce bu kanalda `/lig_yayin` komutunu çalıştır.",
+            parse_mode="Markdown")
+
+    await update.message.reply_text("📤 Test mesajı gönderiliyor...", parse_mode="Markdown")
+
+    test_msg = (
+        "📡 *YAYIN TESTİ*\n\n"
+        "✅ Lig botu bu kanala bağlı!\n"
+        "🏟️ Maç yayınları buraya gelecek.\n\n"
+        "⚽ *Türk Budun Ligi*"
+    )
+
+    sent = await _send_to_broadcast_chats(context, test_msg, category="lig")
+
+    if sent:
+        await update.message.reply_text(
+            f"✅ *Test başarılı!*\n"
+            f"📤 {len(sent)} kanala gönderildi: `{list(sent)}`",
+            parse_mode="Markdown")
+    else:
+        await update.message.reply_text(
+            "❌ *Hiçbir yere gönderilemedi!*\n\n"
+            "Railway loglarına bak, hata detayı orada.",
+            parse_mode="Markdown")
 
 
 
@@ -3898,12 +4195,18 @@ def main():
         ("terfi_dusme",     cmd_terfi_dusme),
         ("fikstur_olustur", cmd_fikstur_olustur),
         ("maclari_basla",   cmd_maclari_basla),
+        ("macbaslat",       cmd_macbaslat),
         ("sezon_bitir",     cmd_sezon_bitir),
+        ("ilk11",           cmd_ilk11),
+        ("ilk11_ekle",      cmd_ilk11_ekle),
+        ("ilk11_cikar",     cmd_ilk11_cikar),
+        ("ilk11_sifirla",   cmd_ilk11_sifirla),
         ("sezon_sifirla",   cmd_sezon_sifirla),
         ("lig_sil",          cmd_lig_sil),
         ("lig_oyuncular",   cmd_lig_oyuncular),
         ("lig_tam_sifirla", cmd_lig_tam_sifirla),
         ("lig_yayin",       cmd_lig_yayin),
+        ("yayin_test",      cmd_yayin_test),
         ("casino_yayin",    cmd_casino_yayin),
         ("yayin_durum",     cmd_yayin_durum),
     ]

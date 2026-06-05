@@ -1801,14 +1801,8 @@ async def cmd_duyuru(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     chat_id   = update.effective_chat.id
     thread_id = update.message.message_thread_id if update.message.is_topic_message else None
+    is_private = update.effective_chat.type == "private"
 
-    # 1. ÖNCE komut mesajını sil
-    try:
-        await update.message.delete()
-    except Exception as e:
-        logging.warning(f"Duyuru: komut silinemedi: {e}")
-
-    # 2. SONRA duyuruyu gönder
     duyuru = (
         "╔══════════════════════╗\n"
         "║  📢  GAZİNO DUYURUSU  ║\n"
@@ -1818,25 +1812,63 @@ async def cmd_duyuru(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🎰 *Budun Eğlence Gazinosu*"
     )
 
+    # Komut mesajını sil (sessizce — başarısız olursa devam et)
     try:
-        await context.bot.send_message(
-            chat_id=chat_id,
-            message_thread_id=thread_id,
-            text=duyuru,
-            parse_mode="Markdown")
-    except Exception:
-        # Markdown parse hatası varsa düz metin gönder
+        await update.message.delete()
+    except Exception as e:
+        logging.warning(f"Duyuru: komut silinemedi: {e}")
+
+    sent = False
+
+    # 1. Önce thread'e gönder (forum grubu)
+    if thread_id:
         try:
             await context.bot.send_message(
-                chat_id=chat_id,
-                message_thread_id=thread_id,
-                text=duyuru)
-        except Exception:
-            # Thread sorunu varsa thread olmadan dene
+                chat_id=chat_id, message_thread_id=thread_id,
+                text=duyuru, parse_mode="Markdown")
+            sent = True
+        except Exception as e:
+            logging.warning(f"Duyuru thread hatası: {e}")
             try:
-                await context.bot.send_message(chat_id=chat_id, text=duyuru, parse_mode="Markdown")
-            except Exception:
+                await context.bot.send_message(
+                    chat_id=chat_id, message_thread_id=thread_id, text=duyuru)
+                sent = True
+            except Exception as e2:
+                logging.warning(f"Duyuru thread düz metin hatası: {e2}")
+
+    # 2. Thread olmadan dene
+    if not sent:
+        try:
+            await context.bot.send_message(
+                chat_id=chat_id, text=duyuru, parse_mode="Markdown")
+            sent = True
+        except Exception as e:
+            logging.warning(f"Duyuru ana chat hatası: {e}")
+            try:
                 await context.bot.send_message(chat_id=chat_id, text=duyuru)
+                sent = True
+            except Exception as e2:
+                logging.warning(f"Duyuru düz metin hatası: {e2}")
+
+    # 3. Özel mesajla gönderme (sadece private chat'ten çalıştırıldıysa zaten orada)
+    if not sent and not is_private:
+        try:
+            await context.bot.send_message(
+                chat_id=ADMIN_ID, text=f"❌ Duyuru gönderilemedi!\n\nMesaj:\n{duyuru}")
+        except: pass
+        try:
+            await context.bot.send_message(
+                chat_id=update.effective_user.id,
+                text=f"❌ Duyuru gruba gönderilemedi!\n\n"
+                     f"Sebep: Bot grupta mesaj gönderme yetkisine sahip olmayabilir.\n"
+                     f"Çözüm: Botu gruba admin yap veya BotFather'da Group Privacy'yi kapat.")
+        except: pass
+
+    # 4. Başarılı ise yayın kanallarına da gönder
+    if sent:
+        try:
+            await _send_to_broadcast_chats(context, duyuru, category="casino")
+        except: pass
 
 async def cmd_reseteko(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id): return
