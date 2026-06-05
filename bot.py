@@ -108,14 +108,18 @@ def _get_halftime_coach_msg(t1, t2, g1, g2):
 
 async def _send_to_broadcast_chats(context, text, parse_mode="Markdown", category="lig"):
     """
-    Yayın chat'lerine ve adminlere gönder.
-    category: "lig" | "casino" — hangi konuya gönderileceğini belirler
-    KURAL: Her chat'e SADECE 1 mesaj gönderilir, çift gönderim yok.
+    Yayın chat'lerine gönder.
+    category: "lig" | "casino"
     """
     sent_to = set()
-    # Yeni sistem: BROADCAST_TOPICS (öncelikli)
+
+    if not BROADCAST_TOPICS and not LIG_BROADCAST_CHATS:
+        print(f"[YAYIN] ⚠️ Hiç yayın kanalı kayıtlı değil! /lig_yayin komutuyla kayıt et.")
+        return sent_to
+
     for chat_id, topics in list(BROADCAST_TOPICS.items()):
-        if chat_id in sent_to: continue
+        if chat_id in sent_to:
+            continue
         thread_id = topics.get(category)
         try:
             kwargs = {"chat_id": chat_id, "text": text, "parse_mode": parse_mode}
@@ -123,27 +127,28 @@ async def _send_to_broadcast_chats(context, text, parse_mode="Markdown", categor
                 kwargs["message_thread_id"] = thread_id
             await context.bot.send_message(**kwargs)
             sent_to.add(chat_id)
-        except Exception:
-            # Markdown parse hatası: düz metin dene
+            print(f"[YAYIN] ✅ {category} → chat {chat_id} thread {thread_id}")
+        except Exception as e1:
+            print(f"[YAYIN] ⚠️ Markdown hata chat {chat_id}: {e1} — düz metin deneniyor")
             try:
-                kwargs = {"chat_id": chat_id, "text": text}
+                kwargs2 = {"chat_id": chat_id, "text": text}
                 if thread_id is not None:
-                    kwargs["message_thread_id"] = thread_id
-                await context.bot.send_message(**kwargs)
+                    kwargs2["message_thread_id"] = thread_id
+                await context.bot.send_message(**kwargs2)
                 sent_to.add(chat_id)
-            except:
-                pass
-    # Eski sistem fallback (LIG_BROADCAST_CHATS) — sadece BROADCAST_TOPICS'te olmayanlara
+            except Exception as e2:
+                print(f"[YAYIN] ❌ Gönderilemedi chat {chat_id}: {e2}")
+
     for chat_id in list(LIG_BROADCAST_CHATS):
-        if chat_id in sent_to: continue
+        if chat_id in sent_to:
+            continue
         try:
             await context.bot.send_message(chat_id=chat_id, text=text, parse_mode=parse_mode)
             sent_to.add(chat_id)
-        except:
-            pass
-    # NOT: Admin DM fallback kaldırıldı.
-    # Yayın kanalı ayarlı değilse mesaj hiçbir yere gitmez (admin'i spam'lemez).
-    # Yayın kanalı ayarlamak için: /lig_yayin veya /casino_yayin
+            print(f"[YAYIN] ✅ fallback → chat {chat_id}")
+        except Exception as e:
+            print(f"[YAYIN] ❌ fallback hata chat {chat_id}: {e}")
+
     return sent_to
 
 async def _notify_admin(context, text, parse_mode="Markdown"):
@@ -3614,63 +3619,99 @@ async def cmd_lig_tam_sifirla(update: Update, context: ContextTypes.DEFAULT_TYPE
             f"`/lig_tam_sifirla EVET`",
             parse_mode="Markdown")
 
-    msg = await update.message.reply_text("⏳ *Lig tamamen sıfırlanıyor...*", parse_mode="Markdown")
+    msg = await update.message.reply_text("⏳ *Lig tamamen sıfırlanıyor...*\n\n`[          ]` %0", parse_mode="Markdown")
 
     from database import connect, ph
     p = ph()
 
+    # Her tablo AYRI connection ile siliniyor
+    # PostgreSQL'de bir tablo hata verince diğerleri etkilenmiyor
+    def _safe_delete(table: str) -> tuple[bool, str]:
+        try:
+            with connect() as conn:
+                cur = conn.cursor()
+                cur.execute(f"DELETE FROM {table}")
+                conn.commit()
+            return True, ""
+        except Exception as e:
+            return False, str(e)
+
     tables_to_clear = [
-        "lig_teams", "lig_squad", "lig_seasons", "lig_champions",
-        "lig_fixtures", "lig_matches", "lig_season_stats",
-        "lig_conversion", "lig_coaches", "lig_training", "lig_contracts",
-        "player_vacation", "player_loans", "market_listings",
-        "player_offers", "form_actions", "social_reactions",
-        "lig_news", "lig_predictions", "lig_mvp_log",
+        "lig_squad",           # önce kadro (foreign key)
+        "lig_fixtures",
+        "lig_matches",
+        "lig_season_stats",
+        "lig_conversion",
+        "lig_coaches",
+        "lig_training",
+        "lig_contracts",
+        "player_vacation",
+        "player_loans",
+        "market_listings",
+        "player_offers",
+        "form_actions",
+        "social_reactions",
+        "lig_news",
+        "lig_predictions",
+        "lig_mvp_log",
+        "lig_teams",           # takımlar en son
+        "lig_seasons",         # sezonlar en son
+        "lig_champions",
     ]
 
-    cleared = {}
-    errors = []
-    with connect() as conn:
-        cur = conn.cursor()
-        for tbl in tables_to_clear:
-            try:
-                cur.execute(f"DELETE FROM {tbl}")
-                cleared[tbl] = True
-            except Exception as e:
-                errors.append(f"{tbl}: {e}")
-        conn.commit()
+    ok_count  = 0
+    err_list  = []
+    total_tbl = len(tables_to_clear)
 
-    # Sezon 1'i oluştur
+    for i, tbl in enumerate(tables_to_clear):
+        success, err = _safe_delete(tbl)
+        if success:
+            ok_count += 1
+        else:
+            err_list.append(f"{tbl}: {err[:40]}")
+
+        # Her 5 tabloda bir ilerleme göster
+        if i % 5 == 0:
+            pct = int((i / total_tbl) * 100)
+            bar = "█" * (pct // 10) + "░" * (10 - pct // 10)
+            try:
+                await msg.edit_text(
+                    f"⏳ *Sıfırlanıyor...*\n\n`[{bar}]` %{pct}\n_{tbl} temizlendi..._",
+                    parse_mode="Markdown")
+            except: pass
+
+    # Sezon 1 oluştur — ayrı connection
     from datetime import datetime, timedelta
     new_start = datetime.now()
     new_end   = new_start + timedelta(days=30)
-    with connect() as conn:
-        cur = conn.cursor()
-        try:
+    sezon_ok  = False
+    try:
+        with connect() as conn:
+            cur = conn.cursor()
             cur.execute(
-                f"INSERT INTO lig_seasons (season_no, start_date, end_date, is_active) VALUES ({p},{p},{p},1)",
+                f"INSERT INTO lig_seasons (season_no, start_date, end_date, is_active) "
+                f"VALUES ({p},{p},{p},1)",
                 (1, new_start.isoformat(), new_end.isoformat()))
             conn.commit()
-        except Exception as e:
-            errors.append(f"Sezon oluşturma: {e}")
+        sezon_ok = True
+    except Exception as e:
+        err_list.append(f"Sezon1: {e}")
 
-    ok_count  = sum(1 for v in cleared.values() if v)
-    err_count = len(errors)
-
+    # Sonuç mesajı
     result = (
         f"✅ *LİG TAMAMEN SIFIRLANDI!*\n\n"
-        f"🗑️ *{ok_count}* tablo temizlendi\n"
-        f"🆕 *Sezon 1* başlatıldı!\n"
+        f"🗑️ *{ok_count}/{total_tbl}* tablo temizlendi\n"
+        f"{'✅' if sezon_ok else '❌'} Sezon 1 oluşturuldu\n"
         f"📅 Bitiş: *{new_end.strftime('%d.%m.%Y')}*\n\n"
-        f"📋 *Sonraki adımlar:*\n"
-        f"  1️⃣ Oyuncular `/takim_kur` ile kayıt olsun\n"
+        f"📋 *Sıradaki adımlar:*\n"
+        f"  1️⃣ Oyuncular `/takim_kur <isim>` ile kayıt olsun\n"
         f"  2️⃣ `/fikstur_olustur` ile fikstür oluştur\n"
-        f"  3️⃣ Maçlar 21:00'da otomatik başlar\n\n"
+        f"  3️⃣ Maçlar her gün 21:00'da otomatik başlar\n"
     )
-    if errors:
-        result += f"⚠️ {err_count} hata (önemsiz):\n"
-        for e in errors[:3]:
-            result += f"  _{e[:50]}_\n"
+    if err_list:
+        result += f"\n⚠️ *{len(err_list)} hata (tablo yoksa normaldir):*\n"
+        for e in err_list[:4]:
+            result += f"  _{e}_\n"
 
     await msg.edit_text(result, parse_mode="Markdown")
 
@@ -3679,9 +3720,9 @@ async def cmd_lig_tam_sifirla(update: Update, context: ContextTypes.DEFAULT_TYPE
         await _send_to_broadcast_chats(
             context,
             "🔄 *TÜRK BUDUN LİGİ YENİDEN BAŞLIYOR!*\n\n"
-            "🆕 Sezon 1 — Temiz sayfa!\n"
-            "⚽ Takımını kur: `/takim_kur <isim>`\n"
-            "💎 500.000 LC başlangıç bütçesi!\n\n"
+            "🆕 *Sezon 1* — Herkes sıfırdan başlıyor!\n"
+            "⚽ Takımını kur: `/takim_kur <takım adı>`\n"
+            "💎 Başlangıç bütçesi: *500.000 LC*\n\n"
             "🏆 Kim şampiyon olacak?",
             category="lig")
     except: pass
@@ -3691,22 +3732,72 @@ async def cmd_lig_yayin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Bu konuyu/grubu lig mesajları için ayarla."""
     if not is_admin(update.effective_user.id):
         return
-    chat_id = update.effective_chat.id
+    chat_id   = update.effective_chat.id
     thread_id = update.message.message_thread_id if update.message.is_topic_message else None
 
+    # Bellekte kaydet
     if chat_id not in BROADCAST_TOPICS:
         BROADCAST_TOPICS[chat_id] = {"lig": None, "casino": None}
     BROADCAST_TOPICS[chat_id]["lig"] = thread_id
     LIG_BROADCAST_CHATS.add(chat_id)
-    # DB'ye kalıcı kaydet
-    db.save_broadcast_setting(chat_id, "lig", thread_id)
 
-    where = f"bu konuya (thread {thread_id})" if thread_id else "ana sohbete"
+    # DB'ye kalıcı kaydet
+    try:
+        db.save_broadcast_setting(chat_id, "lig", thread_id)
+        db_ok = "✅ DB kaydı başarılı"
+    except Exception as e:
+        db_ok = f"⚠️ DB kayıt hatası: {e}"
+
+    where = f"konu thread `{thread_id}`" if thread_id else "ana sohbet"
     await update.message.reply_text(
-        f"✅ *Lig yayın kanalı ayarlandı!*\n"
-        f"📺 Maç ve lig mesajları {where} gelecek.\n"
-        f"💾 Kalıcı kaydedildi.",
+        f"✅ *Lig yayın kanalı ayarlandı!*\n\n"
+        f"📺 *Nereye gidecek:* {where}\n"
+        f"💾 {db_ok}\n"
+        f"🆔 Chat ID: `{chat_id}`\n\n"
+        f"📋 *Buraya gelecek mesajlar:*\n"
+        f"  • Günlük maç önizleme (10:00)\n"
+        f"  • Maç öncesi analiz (20:30)\n"
+        f"  • Canlı maç yayını (21:00)\n"
+        f"  • Maç sonuçları & haberler\n"
+        f"  • Sezon ödülleri\n\n"
+        f"💡 Test için: `/yayin_test`",
         parse_mode="Markdown")
+
+    print(f"[YAYIN] ✅ Lig kanalı ayarlandı: chat={chat_id} thread={thread_id}")
+
+
+async def cmd_yayin_test(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Admin: Yayın kanalına test mesajı gönder."""
+    if not is_admin(update.effective_user.id):
+        return
+
+    if not BROADCAST_TOPICS and not LIG_BROADCAST_CHATS:
+        return await update.message.reply_text(
+            "❌ *Yayın kanalı ayarlanmamış!*\n\n"
+            "📋 Önce bu kanalda `/lig_yayin` komutunu çalıştır.",
+            parse_mode="Markdown")
+
+    await update.message.reply_text("📤 Test mesajı gönderiliyor...", parse_mode="Markdown")
+
+    test_msg = (
+        "📡 *YAYIN TESTİ*\n\n"
+        "✅ Lig botu bu kanala bağlı!\n"
+        "🏟️ Maç yayınları buraya gelecek.\n\n"
+        "⚽ *Türk Budun Ligi*"
+    )
+
+    sent = await _send_to_broadcast_chats(context, test_msg, category="lig")
+
+    if sent:
+        await update.message.reply_text(
+            f"✅ *Test başarılı!*\n"
+            f"📤 {len(sent)} kanala gönderildi: `{list(sent)}`",
+            parse_mode="Markdown")
+    else:
+        await update.message.reply_text(
+            "❌ *Hiçbir yere gönderilemedi!*\n\n"
+            "Railway loglarına bak, hata detayı orada.",
+            parse_mode="Markdown")
 
 
 
@@ -3868,6 +3959,7 @@ def main():
         ("lig_oyuncular",   cmd_lig_oyuncular),
         ("lig_tam_sifirla", cmd_lig_tam_sifirla),
         ("lig_yayin",       cmd_lig_yayin),
+        ("yayin_test",      cmd_yayin_test),
         ("casino_yayin",    cmd_casino_yayin),
         ("yayin_durum",     cmd_yayin_durum),
     ]
