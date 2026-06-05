@@ -2559,7 +2559,7 @@ LEAGUE_TIERS = {
     1: {"name": "🥉 1. Lig",            "promote": 3, "relegate": 0},
     2: {"name": "🥈 2. Lig",            "promote": 3, "relegate": 3},
     3: {"name": "🥇 3. Lig",            "promote": 3, "relegate": 3},
-    4: {"name": "🏆 Cumhuriyet Süper Lig", "promote": 0, "relegate": 3},
+    4: {"name": "🏆 Türk Budun Süper Ligi", "promote": 0, "relegate": 3},
 }
 
 def init_bank_table():
