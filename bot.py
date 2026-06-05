@@ -3541,6 +3541,152 @@ async def cmd_lig_sil(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"💡 Casino hesabı korundu.",
         parse_mode="Markdown")
 
+async def cmd_lig_oyuncular(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Admin: Ligde kayıtlı tüm oyuncuları listele — ID, username, takım adı, LC."""
+    if not is_admin(update.effective_user.id):
+        return
+
+    teams = db.get_all_teams_ranked()
+    if not teams:
+        return await update.message.reply_text("❌ Ligde kayıtlı takım yok.")
+
+    # Sayfa sistemi: her sayfada 15 takım
+    page = 0
+    if context.args:
+        try: page = max(0, int(context.args[0]) - 1)
+        except: pass
+
+    per_page = 15
+    total = len(teams)
+    start = page * per_page
+    end   = start + per_page
+    slice_ = teams[start:end]
+
+    medals = ["🥇","🥈","🥉"]
+    text = (
+        f"╔══════════════════════╗\n"
+        f"║  📋  LİG OYUNCULARI  ║\n"
+        f"╚══════════════════════╝\n\n"
+        f"👥 Toplam: *{total}* takım\n"
+        f"📄 Sayfa: *{page+1}/{(total-1)//per_page+1}*\n\n"
+    )
+
+    for i, t in enumerate(slice_, start + 1):
+        uid_t, tname, w, d, l, gf, ga, pts = t
+        em = medals[i-1] if i <= 3 else f"{i}."
+        # LC bakiyesi
+        try:
+            lc = db.get_lc_balance(uid_t)
+        except:
+            lc = 0
+        text += f"{em} *{tname[:16]}*\n"
+        text += f"   🆔 `{uid_t}` | 💎 {lc:,} LC | 🏆 {pts}p\n\n"
+
+    if total > per_page:
+        text += f"💡 `/lig_oyuncular {page+2}` → sonraki sayfa\n"
+    text += f"\n🗑️ Çıkarmak için: `/lig_sil <user_id>`"
+
+    await update.message.reply_text(text, parse_mode="Markdown")
+
+
+async def cmd_lig_tam_sifirla(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Admin: TÜM ligi sıfırla — sezon 1'den başlat, tüm takımlar/veriler silinir."""
+    if not is_admin(update.effective_user.id):
+        return
+
+    if not (context.args and context.args[0] == "EVET"):
+        teams = db.get_all_teams_ranked()
+        team_count = len(teams) if teams else 0
+        return await update.message.reply_text(
+            f"⚠️ *TAM LİG SIFIRLAMA*\n\n"
+            f"🚨 Bu işlem geri alınamaz!\n\n"
+            f"📊 *SİLİNECEK HER ŞEY:*\n"
+            f"  • {team_count} takım ve tüm kadroları\n"
+            f"  • Tüm sezon geçmişi\n"
+            f"  • Şampiyon geçmişi\n"
+            f"  • Tüm fikstürler\n"
+            f"  • LC bakiyeler (sıfırlanır)\n"
+            f"  • Tüm teklifler, kiralıklar\n"
+            f"  • Tüm haberler, sosyal medya\n"
+            f"  • Tüm tahminler\n\n"
+            f"🆕 *Sonuç:* Sezon 1'den temiz başlangıç\n\n"
+            f"✅ Onaylamak için:\n"
+            f"`/lig_tam_sifirla EVET`",
+            parse_mode="Markdown")
+
+    msg = await update.message.reply_text("⏳ *Lig tamamen sıfırlanıyor...*", parse_mode="Markdown")
+
+    from database import connect, ph
+    p = ph()
+
+    tables_to_clear = [
+        "lig_teams", "lig_squad", "lig_seasons", "lig_champions",
+        "lig_fixtures", "lig_matches", "lig_season_stats",
+        "lig_conversion", "lig_coaches", "lig_training", "lig_contracts",
+        "player_vacation", "player_loans", "market_listings",
+        "player_offers", "form_actions", "social_reactions",
+        "lig_news", "lig_predictions", "lig_mvp_log",
+    ]
+
+    cleared = {}
+    errors = []
+    with connect() as conn:
+        cur = conn.cursor()
+        for tbl in tables_to_clear:
+            try:
+                cur.execute(f"DELETE FROM {tbl}")
+                cleared[tbl] = True
+            except Exception as e:
+                errors.append(f"{tbl}: {e}")
+        conn.commit()
+
+    # Sezon 1'i oluştur
+    from datetime import datetime, timedelta
+    new_start = datetime.now()
+    new_end   = new_start + timedelta(days=30)
+    with connect() as conn:
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                f"INSERT INTO lig_seasons (season_no, start_date, end_date, is_active) VALUES ({p},{p},{p},1)",
+                (1, new_start.isoformat(), new_end.isoformat()))
+            conn.commit()
+        except Exception as e:
+            errors.append(f"Sezon oluşturma: {e}")
+
+    ok_count  = sum(1 for v in cleared.values() if v)
+    err_count = len(errors)
+
+    result = (
+        f"✅ *LİG TAMAMEN SIFIRLANDI!*\n\n"
+        f"🗑️ *{ok_count}* tablo temizlendi\n"
+        f"🆕 *Sezon 1* başlatıldı!\n"
+        f"📅 Bitiş: *{new_end.strftime('%d.%m.%Y')}*\n\n"
+        f"📋 *Sonraki adımlar:*\n"
+        f"  1️⃣ Oyuncular `/takim_kur` ile kayıt olsun\n"
+        f"  2️⃣ `/fikstur_olustur` ile fikstür oluştur\n"
+        f"  3️⃣ Maçlar 21:00'da otomatik başlar\n\n"
+    )
+    if errors:
+        result += f"⚠️ {err_count} hata (önemsiz):\n"
+        for e in errors[:3]:
+            result += f"  _{e[:50]}_\n"
+
+    await msg.edit_text(result, parse_mode="Markdown")
+
+    # Gruba duyuru
+    try:
+        await _send_to_broadcast_chats(
+            context,
+            "🔄 *TÜRK BUDUN LİGİ YENİDEN BAŞLIYOR!*\n\n"
+            "🆕 Sezon 1 — Temiz sayfa!\n"
+            "⚽ Takımını kur: `/takim_kur <isim>`\n"
+            "💎 500.000 LC başlangıç bütçesi!\n\n"
+            "🏆 Kim şampiyon olacak?",
+            category="lig")
+    except: pass
+
+
 async def cmd_lig_yayin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Bu konuyu/grubu lig mesajları için ayarla."""
     if not is_admin(update.effective_user.id):
@@ -3718,7 +3864,9 @@ def main():
         ("maclari_basla",   cmd_maclari_basla),
         ("sezon_bitir",     cmd_sezon_bitir),
         ("sezon_sifirla",   cmd_sezon_sifirla),
-        ("lig_sil",         cmd_lig_sil),
+        ("lig_sil",          cmd_lig_sil),
+        ("lig_oyuncular",   cmd_lig_oyuncular),
+        ("lig_tam_sifirla", cmd_lig_tam_sifirla),
         ("lig_yayin",       cmd_lig_yayin),
         ("casino_yayin",    cmd_casino_yayin),
         ("yayin_durum",     cmd_yayin_durum),
