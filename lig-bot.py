@@ -4245,9 +4245,9 @@ def main():
         BotCommand("takim_kur",      "⚽ Takım kur — /takim_kur AdınFC"),
         BotCommand("takimim",        "👥 Kadroyu gör"),
         BotCommand("lc_bakiye",      "💎 LC bakiyeni gör"),
-        BotCommand("market",         "🛒 Transfer marketi — müsait oyuncular"),
+        BotCommand("market",         "🛒 Transfer marketi"),
         BotCommand("transfer",       "✅ Oyuncu satın al — /transfer Haaland"),
-        BotCommand("sat",            "💸 Oyuncu sat — /sat Haaland"),
+        BotCommand("sat",            "💸 Oyuncu sat"),
         BotCommand("akademi",        "🎓 Ucuz genç oyuncular"),
         BotCommand("akademi_al",     "🎓 Akademiden oyuncu al"),
         BotCommand("pazar",          "🏪 Diğer takımların oyuncu ilanları"),
@@ -4268,10 +4268,10 @@ def main():
         BotCommand("tatil",          "🏖️ Form sıfırla — 1 maç gıyabi"),
         BotCommand("kamp",           "🏕️ Tüm kadro form +1 — 50.000 LC"),
         BotCommand("kaptan",         "🅰️ Kaptan seç"),
-        BotCommand("ilk11",          "⚽ İlk 11'i gör"),
-        BotCommand("ilk11_ekle",     "➕ İlk 11'e oyuncu ekle"),
-        BotCommand("ilk11_cikar",    "➖ İlk 11'den oyuncu çıkar"),
-        BotCommand("ilk11_sifirla",  "🔄 İlk 11'i otomatik moda al"),
+        BotCommand("ilk11",          "⚽ İlk 11i gör"),
+        BotCommand("ilk11_ekle",     "➕ İlk 11e oyuncu ekle"),
+        BotCommand("ilk11_cikar",    "➖ İlk 11den oyuncu çıkar"),
+        BotCommand("ilk11_sifirla",  "🔄 İlk 11i otomatik moda al"),
         BotCommand("taktik",         "⚙️ Taktik merkezi"),
         BotCommand("dizilis",        "📐 Diziliş değiştir — 4-3-3 / 4-4-2 / 5-3-2"),
         BotCommand("taktik_sec",     "🎯 Taktik seç — hucum/defans/dengeli/pres"),
@@ -4279,18 +4279,29 @@ def main():
         BotCommand("ligler",         "🏆 Tüm lig kademeleri"),
         BotCommand("sampiyonlar",    "🥇 Geçmiş sezon şampiyonları"),
         BotCommand("fikstur",        "📅 Fikstür — /fikstur bugun/yarin/tum"),
-        BotCommand("tahmin",         "🎯 Skor tahmini — maç öncesi 20:30-21:00"),
+        BotCommand("tahmin",         "🎯 Skor tahmini — 20:30 ile 21:00 arası"),
         BotCommand("rakip",          "🔍 Rakip profili ve analizi"),
-        BotCommand("macbaslat",      "⚽ Maçlar ne zaman başlıyor?"),
+        BotCommand("macbaslat",      "⚽ Maçlar ne zaman başlıyor"),
         BotCommand("haberler",       "📰 Son lig haberleri"),
         BotCommand("sosyal",         "📱 Sosyal medya tepkileri"),
         BotCommand("kur",            "💱 Anlık LC döviz kuru"),
-        BotCommand("cevir",          "💱 Casino coin → LC çevir"),
+        BotCommand("cevir",          "💱 Casino coin LC ye çevir"),
         BotCommand("lc_kod",         "🎁 LC hediye kodu kullan"),
         BotCommand("yardim",         "❓ Tüm komutlar"),
     ]
+
+    async def _set_commands(application):
+        try:
+            await application.bot.set_my_commands(lig_commands)
+            print("[BOT] ✅ Komut listesi Telegram'a yüklendi")
+        except Exception as e:
+            print(f"[BOT] ⚠️ Komut listesi yüklenemedi: {e}")
+
+    import asyncio
     try:
-        await app.bot.set_my_commands(lig_commands)
+        asyncio.get_event_loop().run_until_complete(
+            app.bot.set_my_commands(lig_commands)
+        )
         print("[BOT] ✅ Komut listesi Telegram'a yüklendi")
     except Exception as e:
         print(f"[BOT] ⚠️ Komut listesi yüklenemedi: {e}")
