@@ -4236,6 +4236,65 @@ def main():
         app.job_queue.run_repeating(countdown_match_job,         interval=60,   first=200, name="countdown")
 
     print("🏟️ Lig Botu aktif — v3.1 Elite")
+
+    # ── Telegram "/" menüsü için komut listesi ──
+    from telegram import BotCommand
+    lig_commands = [
+        BotCommand("start",          "🏟️ Botu başlat"),
+        BotCommand("lig",            "📋 Takım ana ekranı"),
+        BotCommand("takim_kur",      "⚽ Takım kur — /takim_kur AdınFC"),
+        BotCommand("takimim",        "👥 Kadroyu gör"),
+        BotCommand("lc_bakiye",      "💎 LC bakiyeni gör"),
+        BotCommand("market",         "🛒 Transfer marketi — müsait oyuncular"),
+        BotCommand("transfer",       "✅ Oyuncu satın al — /transfer Haaland"),
+        BotCommand("sat",            "💸 Oyuncu sat — /sat Haaland"),
+        BotCommand("akademi",        "🎓 Ucuz genç oyuncular"),
+        BotCommand("akademi_al",     "🎓 Akademiden oyuncu al"),
+        BotCommand("pazar",          "🏪 Diğer takımların oyuncu ilanları"),
+        BotCommand("sat_pazar",      "🏪 Oyuncunu pazara koy"),
+        BotCommand("pazardan_al",    "🏪 Pazardan oyuncu satın al"),
+        BotCommand("teklif",         "🤝 Oyuncu için teklif yap"),
+        BotCommand("teklif_kabul",   "✅ Teklifi kabul et"),
+        BotCommand("teklif_red",     "❌ Teklifi reddet"),
+        BotCommand("teklif_karsi",   "🔄 Karşı teklif yap"),
+        BotCommand("kirala",         "📋 4 maçlık kiralama teklifi"),
+        BotCommand("antrenor",       "👔 Antrenör marketi"),
+        BotCommand("hoca_tut",       "👔 Antrenör tut"),
+        BotCommand("hoca_birak",     "👔 Antrenörü sal"),
+        BotCommand("antrenman",      "🏋️ Oyuncu antrene et — günde 2x"),
+        BotCommand("form",           "📊 Tüm kadronun form durumu"),
+        BotCommand("fizyo",          "💊 Form +2 garantili — 10.000 LC"),
+        BotCommand("motivasyon",     "🗣️ Ücretsiz rastgele form denemesi"),
+        BotCommand("tatil",          "🏖️ Form sıfırla — 1 maç gıyabi"),
+        BotCommand("kamp",           "🏕️ Tüm kadro form +1 — 50.000 LC"),
+        BotCommand("kaptan",         "🅰️ Kaptan seç"),
+        BotCommand("ilk11",          "⚽ İlk 11'i gör"),
+        BotCommand("ilk11_ekle",     "➕ İlk 11'e oyuncu ekle"),
+        BotCommand("ilk11_cikar",    "➖ İlk 11'den oyuncu çıkar"),
+        BotCommand("ilk11_sifirla",  "🔄 İlk 11'i otomatik moda al"),
+        BotCommand("taktik",         "⚙️ Taktik merkezi"),
+        BotCommand("dizilis",        "📐 Diziliş değiştir — 4-3-3 / 4-4-2 / 5-3-2"),
+        BotCommand("taktik_sec",     "🎯 Taktik seç — hucum/defans/dengeli/pres"),
+        BotCommand("lig_top",        "🏆 Anlık puan durumu"),
+        BotCommand("ligler",         "🏆 Tüm lig kademeleri"),
+        BotCommand("sampiyonlar",    "🥇 Geçmiş sezon şampiyonları"),
+        BotCommand("fikstur",        "📅 Fikstür — /fikstur bugun/yarin/tum"),
+        BotCommand("tahmin",         "🎯 Skor tahmini — maç öncesi 20:30-21:00"),
+        BotCommand("rakip",          "🔍 Rakip profili ve analizi"),
+        BotCommand("macbaslat",      "⚽ Maçlar ne zaman başlıyor?"),
+        BotCommand("haberler",       "📰 Son lig haberleri"),
+        BotCommand("sosyal",         "📱 Sosyal medya tepkileri"),
+        BotCommand("kur",            "💱 Anlık LC döviz kuru"),
+        BotCommand("cevir",          "💱 Casino coin → LC çevir"),
+        BotCommand("lc_kod",         "🎁 LC hediye kodu kullan"),
+        BotCommand("yardim",         "❓ Tüm komutlar"),
+    ]
+    try:
+        await app.bot.set_my_commands(lig_commands)
+        print("[BOT] ✅ Komut listesi Telegram'a yüklendi")
+    except Exception as e:
+        print(f"[BOT] ⚠️ Komut listesi yüklenemedi: {e}")
+
     app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
