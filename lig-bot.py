@@ -30,7 +30,11 @@ TOKEN = os.getenv("LIG_BOT_TOKEN") or os.getenv("BOT_TOKEN")
 if not TOKEN:
     raise ValueError("LIG_BOT_TOKEN veya BOT_TOKEN env variable eksik!")
 ADMIN_IDS = list(map(int, os.getenv("ADMIN_IDS", "6084870602").split(",")))
+# Bot sahibi: Railway'de SUPER_ADMIN_ID tanımla. Yoksa ilk admin kullanılır.
+_super_raw = os.getenv("SUPER_ADMIN_ID", "")
+SUPER_ADMIN_ID = int(_super_raw) if _super_raw.strip().isdigit() else ADMIN_IDS[0]
 def is_admin(uid): return uid in ADMIN_IDS
+def is_super_admin(uid): return uid == SUPER_ADMIN_ID
 
 # ── Sabitler ──
 BROADCAST_TOPICS = {}
@@ -223,23 +227,18 @@ async def _live_match_simulation(context, team1_name, team1_squad, team1_form,
     # Form emojileri
     def form_em(f): return "🔥" if f>=3 else "📈" if f>0 else "📉" if f<0 else "➡️"
 
-    # ── AÇILIŞ ──
-    intro_templates = [
-        f"🏟️ *SAHAYA ÇIKIYORLAR!*\n\n"
+    # ── AÇILIŞ — TEK MESAJ ──
+    intro_msg = (
+        f"🏟️ *MAÇ BAŞLIYOR!*\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n"
         f"{'🔴' if 'a' in team1_name.lower() else '🔵'} *{team1_name}* {form_em(team1_form)}\n"
-        f"⚡ *KARŞISINDA* ⚡\n"
-        f"{'🟡' if 'b' in team2_name.lower() else '⚪'} *{team2_name}* {form_em(team2_form)}\n\n"
-        f"📐 {t1_formation} *vs* {t2_formation}\n"
-        f"🎯 {t1_tactic.upper()} *vs* {t2_tactic.upper()}\n\n"
-        f"_Düdük çalmak üzere..._",
-
-        f"📣 *MAÇA DAKIKALAR KALA!*\n\n"
-        f"🏠 *{team1_name}* → *{t1_tactic}* taktiğiyle geliyor {form_em(team1_form)}\n"
-        f"✈️ *{team2_name}* → *{t2_tactic}* taktiğiyle sahada {form_em(team2_form)}\n\n"
-        f"⚡ Kim üstün gelecek?\n"
-        f"_Birkaç dakika sonra başlıyoruz!_",
-    ]
-    await _send_to_broadcast_chats(context, _r.choice(intro_templates), category="lig")
+        f"⚡ *VS* ⚡\n"
+        f"{'🟡' if 'b' in team2_name.lower() else '⚪'} *{team2_name}* {form_em(team2_form)}\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"📐 {t1_formation} ({t1_tactic}) *vs* {t2_formation} ({t2_tactic})\n"
+        f"_Düdük çalmak üzere..._"
+    )
+    await _send_to_broadcast_chats(context, intro_msg, category="lig")
     await asyncio.sleep(8)
 
     # Olayları 15 dakikaya yay (her olay = yaklaşık 60-90 sn bekleme)
@@ -285,21 +284,16 @@ async def _live_match_simulation(context, team1_name, team1_squad, team1_form,
             else:
                 ht_durum = "⚖️ Berabere gidiyoruz!"
 
-            ht_msg1 = (
-                f"⏸️ *İLK YARI BİTTİ!*\n\n"
-                f"┌──────────────────────┐\n"
-                f"│  {team1_name[:10].center(10)}  {current_g1} ┃ {current_g2}  {team2_name[:10].center(10)}  │\n"
-                f"└──────────────────────┘\n\n"
+            ht_msg = (
+                f"⏸️ *İLK YARI BİTTİ!*\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"⚽ *{team1_name}* `{current_g1} — {current_g2}` *{team2_name}*\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"{ht_durum}\n"
-                f"_İkinci yarı heyecanla başlıyor..._"
+                f"{_get_halftime_coach_msg(team1_name, team2_name, current_g1, current_g2)}\n"
+                f"_İkinci yarı başlıyor..._"
             )
-            ht_msg2 = (
-                f"📢 *SOYUNMA ODASI ZAMANI!*\n\n"
-                f"🕐 45 dakika oynadık\n"
-                f"📊 Skor: *{team1_name}* `{ht_score}` *{team2_name}*\n\n"
-                f"{_get_halftime_coach_msg(team1_name, team2_name, current_g1, current_g2)}"
-            )
-            await _send_to_broadcast_chats(context, _r.choice([ht_msg1, ht_msg2]), category="lig")
+            await _send_to_broadcast_chats(context, ht_msg, category="lig")
             await asyncio.sleep(12)
 
         # Tempo yorumu (her 20 dakikada bir)
@@ -954,20 +948,44 @@ async def daily_match_job(context):
             db.update_team_stats(t2["uid"], "loss", g2, g1)
             db.update_team_form(t1["uid"], "win")
             db.update_team_form(t2["uid"], "loss")
-            db.update_lc_balance(t1["uid"], 5000)
+            db.update_lc_balance(t1["uid"], 15000)
+            db.update_lc_balance(t2["uid"], 5000)  # kayıp teselli
+            # DM bildirimleri
+            try:
+                await context.bot.send_message(chat_id=t1["uid"],
+                    text=f"🏆 *Galibiyet!* ⚽ `{g1}-{g2}` vs *{t2['name']}*\n💰 *+15.000 LC* kazandın!", parse_mode="Markdown")
+            except: pass
+            try:
+                await context.bot.send_message(chat_id=t2["uid"],
+                    text=f"😔 *Mağlubiyet.* ⚽ `{g1}-{g2}` vs *{t1['name']}*\n💰 *+5.000 LC* teselli ödülü.", parse_mode="Markdown")
+            except: pass
         elif g2 > g1:
             db.update_team_stats(t1["uid"], "loss", g1, g2)
             db.update_team_stats(t2["uid"], "win", g2, g1)
             db.update_team_form(t1["uid"], "loss")
             db.update_team_form(t2["uid"], "win")
-            db.update_lc_balance(t2["uid"], 5000)
+            db.update_lc_balance(t2["uid"], 15000)
+            db.update_lc_balance(t1["uid"], 5000)  # kayıp teselli
+            try:
+                await context.bot.send_message(chat_id=t2["uid"],
+                    text=f"🏆 *Galibiyet!* ⚽ `{g2}-{g1}` vs *{t1['name']}*\n💰 *+15.000 LC* kazandın!", parse_mode="Markdown")
+            except: pass
+            try:
+                await context.bot.send_message(chat_id=t1["uid"],
+                    text=f"😔 *Mağlubiyet.* ⚽ `{g1}-{g2}` vs *{t2['name']}*\n💰 *+5.000 LC* teselli ödülü.", parse_mode="Markdown")
+            except: pass
         else:
             db.update_team_stats(t1["uid"], "draw", g1, g2)
             db.update_team_stats(t2["uid"], "draw", g2, g1)
             db.update_team_form(t1["uid"], "draw")
             db.update_team_form(t2["uid"], "draw")
-            db.update_lc_balance(t1["uid"], 2000)
-            db.update_lc_balance(t2["uid"], 2000)
+            db.update_lc_balance(t1["uid"], 10000)
+            db.update_lc_balance(t2["uid"], 10000)
+            for uid_d, opp in [(t1["uid"], t2["name"]), (t2["uid"], t1["name"])]:
+                try:
+                    await context.bot.send_message(chat_id=uid_d,
+                        text=f"🤝 *Beraberlik.* ⚽ `{g1}-{g2}` vs *{opp}*\n💰 *+10.000 LC* kazandın!", parse_mode="Markdown")
+                except: pass
 
         # MVP ve sezon istatistikleri kaydet
         if mvp:
@@ -1042,8 +1060,19 @@ async def daily_match_job(context):
         # Derbi bonusu — 2x ödül
         if t1.get("is_derby"):
             if g1 > g2:
-                db.update_lc_balance(t1["uid"], 5000)  # +5K daha (toplam 10K)
+                db.update_lc_balance(t1["uid"], 15000)  # +15K daha (toplam 30K)
+                try:
+                    await context.bot.send_message(chat_id=t1["uid"],
+                        text=f"🔥 *DERBİ GALİBİYETİ!* +15.000 LC ekstra (Toplam: *+30.000 LC*) 🏆", parse_mode="Markdown")
+                except: pass
             elif g2 > g1:
+                db.update_lc_balance(t2["uid"], 15000)
+                try:
+                    await context.bot.send_message(chat_id=t2["uid"],
+                        text=f"🔥 *DERBİ GALİBİYETİ!* +15.000 LC ekstra (Toplam: *+30.000 LC*) 🏆", parse_mode="Markdown")
+                except: pass
+            else:
+                db.update_lc_balance(t1["uid"], 5000)
                 db.update_lc_balance(t2["uid"], 5000)
 
         db.save_match(t1["uid"], t2["uid"], g1, g2, 0)
@@ -1082,8 +1111,12 @@ async def daily_match_job(context):
 
     # BYE takıma küçük teselli ödülü
     if bye_team:
-        db.update_lc_balance(bye_team["uid"], 1500)
-        summary += f"\n🛌 *{bye_team['name']}* BYE — +1.500 LC dinlenme primi\n"
+        db.update_lc_balance(bye_team["uid"], 5000)
+        summary += f"\n🛌 *{bye_team['name']}* BYE — +5.000 LC dinlenme primi\n"
+        try:
+            await context.bot.send_message(chat_id=bye_team["uid"],
+                text=f"🛌 Bu hafta BYE aldın, maçın yok.\n💰 *+5.000 LC* dinlenme primi hesabına geçti!", parse_mode="Markdown")
+        except: pass
 
     # Bot engelleyenleri duyur
     if removed_blocked:
@@ -3970,6 +4003,80 @@ async def cmd_lig_tam_sifirla(update: Update, context: ContextTypes.DEFAULT_TYPE
     except: pass
 
 
+async def cmd_lig_duyuru(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Sadece bot sahibi (SUPER_ADMIN) lig kanalına duyuru atar.
+    Kullanım: /lig_duyuru <mesaj>
+    Hem yayın kanalına hem de (varsa) DM olarak oyunculara gider.
+    """
+    uid = update.effective_user.id
+    if not is_super_admin(uid):
+        return await update.message.reply_text("❌ Bu komut sadece bot sahibine aittir.")
+
+    msg_text = update.message.text.partition(" ")[2].strip()
+    if not msg_text:
+        return await update.message.reply_text(
+            "💡 Kullanım: `/lig_duyuru <mesaj>`\n\n"
+            "Mesaj lig yayın kanalına gönderilir.\n"
+            "Tüm oyunculara DM atmak için: `/lig_duyuru_dm <mesaj>`",
+            parse_mode="Markdown")
+
+    duyuru = (
+        "📢 *LİG DUYURUSU*\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"{msg_text}\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━━"
+    )
+
+    await _send_to_broadcast_chats(context, duyuru, category="lig")
+
+    try:
+        await update.message.reply_text("✅ Duyuru yayın kanalına gönderildi.")
+    except: pass
+
+
+async def cmd_lig_duyuru_dm(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Sadece bot sahibi — tüm lig oyuncularına özelden duyuru atar."""
+    uid = update.effective_user.id
+    if not is_super_admin(uid):
+        return await update.message.reply_text("❌ Bu komut sadece bot sahibine aittir.")
+
+    msg_text = update.message.text.partition(" ")[2].strip()
+    if not msg_text:
+        return await update.message.reply_text(
+            "💡 Kullanım: `/lig_duyuru_dm <mesaj>`\n"
+            "Tüm kayıtlı lig oyuncularına özelden DM gider.",
+            parse_mode="Markdown")
+
+    duyuru_dm = (
+        "📬 *LİG DUYURUSU*\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"{msg_text}\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━━"
+    )
+
+    teams = db.get_all_teams_ranked()
+    sent = 0
+    failed = 0
+    for row in teams:
+        player_uid = row[0]
+        try:
+            await context.bot.send_message(chat_id=player_uid, text=duyuru_dm, parse_mode="Markdown")
+            sent += 1
+        except:
+            failed += 1
+
+    # Yayın kanalına da gönder
+    await _send_to_broadcast_chats(context, duyuru_dm, category="lig")
+
+    try:
+        await update.message.reply_text(
+            f"✅ DM duyurusu tamamlandı.\n"
+            f"📨 Gönderildi: *{sent}* oyuncu\n"
+            f"❌ Başarısız: *{failed}* (botu engellemiş olabilir)",
+            parse_mode="Markdown")
+    except: pass
+
+
 async def cmd_lig_yayin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Bu konuyu/grubu lig mesajları için ayarla."""
     if not is_admin(update.effective_user.id):
@@ -4209,6 +4316,9 @@ def main():
         ("yayin_test",      cmd_yayin_test),
         ("casino_yayin",    cmd_casino_yayin),
         ("yayin_durum",     cmd_yayin_durum),
+        # Super admin duyuru
+        ("lig_duyuru",      cmd_lig_duyuru),
+        ("lig_duyuru_dm",   cmd_lig_duyuru_dm),
     ]
 
     for cmd, handler in commands:

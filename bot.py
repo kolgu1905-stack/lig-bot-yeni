@@ -365,7 +365,7 @@ async def cmd_yardim(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Pazartesi haftalık kayıbın %5 iade!\n\n"
         "⚽ LİG MAÇLARI\n"
         "Her gün 21:00 (TR) otomatik\n"
-        "Galibiyet: +5K LC | Beraberlik: +2K\n"
+        "Galibiyet: +15K LC | Beraberlik: +10K | Kayıp: +5K\n"
         "Derbi (Top 5): 2x ödül\n\n"
         "🎟 LOTO\n"
         "12 saatte 1 çekiliş, max 3 bilet\n"
@@ -2386,12 +2386,16 @@ async def cmd_sat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     sale_price = int(lig.get_player_price(rating) * 0.7)  # %70 değerinde satılır
 
     db.remove_player_from_squad(uid, p_name)
+    # Eğer oyuncu pazarda ilanda ise ilanı da kaldır
+    was_in_market = db.remove_from_market_by_player(uid, p_name)
     db.update_lc_balance(uid, sale_price)
 
+    market_note = "\n🛒 _Pazar ilanı kaldırıldı._" if was_in_market else ""
     await update.message.reply_text(
         f"💸 *{p_name}* satıldı!\n"
         f"💎 Kazanılan: *{sale_price:,} LC* (%70)\n"
-        f"💼 Yeni bütçe: *{db.get_lc_balance(uid):,}*",
+        f"💼 Yeni bütçe: *{db.get_lc_balance(uid):,}*"
+        f"{market_note}",
         parse_mode="Markdown")
 
     # Önemli oyuncu sat haberi (rating 85+)
@@ -2666,23 +2670,18 @@ async def _live_match_simulation(context, team1_name, team1_squad, team1_form,
     # Form emojileri
     def form_em(f): return "🔥" if f>=3 else "📈" if f>0 else "📉" if f<0 else "➡️"
 
-    # ── AÇILIŞ ──
-    intro_templates = [
-        f"🏟️ *SAHAYA ÇIKIYORLAR!*\n\n"
+    # ── AÇILIŞ — TEK MESAJ ──
+    intro_msg = (
+        f"🏟️ *MAÇ BAŞLIYOR!*\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n"
         f"{'🔴' if 'a' in team1_name.lower() else '🔵'} *{team1_name}* {form_em(team1_form)}\n"
-        f"⚡ *KARŞISINDA* ⚡\n"
-        f"{'🟡' if 'b' in team2_name.lower() else '⚪'} *{team2_name}* {form_em(team2_form)}\n\n"
-        f"📐 {t1_formation} *vs* {t2_formation}\n"
-        f"🎯 {t1_tactic.upper()} *vs* {t2_tactic.upper()}\n\n"
-        f"_Düdük çalmak üzere..._",
-
-        f"📣 *MAÇA DAKIKALAR KALA!*\n\n"
-        f"🏠 *{team1_name}* → *{t1_tactic}* taktiğiyle geliyor {form_em(team1_form)}\n"
-        f"✈️ *{team2_name}* → *{t2_tactic}* taktiğiyle sahada {form_em(team2_form)}\n\n"
-        f"⚡ Kim üstün gelecek?\n"
-        f"_Birkaç dakika sonra başlıyoruz!_",
-    ]
-    await _send_to_broadcast_chats(context, _r.choice(intro_templates), category="lig")
+        f"⚡ *VS* ⚡\n"
+        f"{'🟡' if 'b' in team2_name.lower() else '⚪'} *{team2_name}* {form_em(team2_form)}\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"📐 {t1_formation} ({t1_tactic}) *vs* {t2_formation} ({t2_tactic})\n"
+        f"_Düdük çalmak üzere..._"
+    )
+    await _send_to_broadcast_chats(context, intro_msg, category="lig")
     await asyncio.sleep(8)
 
     # Olayları 15 dakikaya yay (her olay = yaklaşık 60-90 sn bekleme)
@@ -2728,21 +2727,16 @@ async def _live_match_simulation(context, team1_name, team1_squad, team1_form,
             else:
                 ht_durum = "⚖️ Berabere gidiyoruz!"
 
-            ht_msg1 = (
-                f"⏸️ *İLK YARI BİTTİ!*\n\n"
-                f"┌──────────────────────┐\n"
-                f"│  {team1_name[:10].center(10)}  {current_g1} ┃ {current_g2}  {team2_name[:10].center(10)}  │\n"
-                f"└──────────────────────┘\n\n"
+            ht_msg = (
+                f"⏸️ *İLK YARI BİTTİ!*\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"⚽ *{team1_name}* `{current_g1} — {current_g2}` *{team2_name}*\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"{ht_durum}\n"
-                f"_İkinci yarı heyecanla başlıyor..._"
+                f"{_get_halftime_coach_msg(team1_name, team2_name, current_g1, current_g2)}\n"
+                f"_İkinci yarı başlıyor..._"
             )
-            ht_msg2 = (
-                f"📢 *SOYUNMA ODASI ZAMANI!*\n\n"
-                f"🕐 45 dakika oynadık\n"
-                f"📊 Skor: *{team1_name}* `{ht_score}` *{team2_name}*\n\n"
-                f"{_get_halftime_coach_msg(team1_name, team2_name, current_g1, current_g2)}"
-            )
-            await _send_to_broadcast_chats(context, _r.choice([ht_msg1, ht_msg2]), category="lig")
+            await _send_to_broadcast_chats(context, ht_msg, category="lig")
             await asyncio.sleep(12)
 
         # Tempo yorumu (her 20 dakikada bir)
@@ -3104,20 +3098,22 @@ async def daily_match_job(context):
             db.update_team_stats(t2["uid"], "loss", g2, g1)
             db.update_team_form(t1["uid"], "win")
             db.update_team_form(t2["uid"], "loss")
-            db.update_lc_balance(t1["uid"], 5000)
+            db.update_lc_balance(t1["uid"], 15000)
+            db.update_lc_balance(t2["uid"], 5000)  # Kayıp teselli
         elif g2 > g1:
             db.update_team_stats(t1["uid"], "loss", g1, g2)
             db.update_team_stats(t2["uid"], "win", g2, g1)
             db.update_team_form(t1["uid"], "loss")
             db.update_team_form(t2["uid"], "win")
-            db.update_lc_balance(t2["uid"], 5000)
+            db.update_lc_balance(t2["uid"], 15000)
+            db.update_lc_balance(t1["uid"], 5000)  # Kayıp teselli
         else:
             db.update_team_stats(t1["uid"], "draw", g1, g2)
             db.update_team_stats(t2["uid"], "draw", g2, g1)
             db.update_team_form(t1["uid"], "draw")
             db.update_team_form(t2["uid"], "draw")
-            db.update_lc_balance(t1["uid"], 2000)
-            db.update_lc_balance(t2["uid"], 2000)
+            db.update_lc_balance(t1["uid"], 10000)
+            db.update_lc_balance(t2["uid"], 10000)
 
         # MVP ve sezon istatistikleri kaydet
         if mvp:
@@ -3187,8 +3183,11 @@ async def daily_match_job(context):
         # Derbi bonusu — 2x ödül
         if t1.get("is_derby"):
             if g1 > g2:
-                db.update_lc_balance(t1["uid"], 5000)  # +5K daha (toplam 10K)
+                db.update_lc_balance(t1["uid"], 15000)  # +15K daha (toplam 30K)
             elif g2 > g1:
+                db.update_lc_balance(t2["uid"], 15000)
+            else:
+                db.update_lc_balance(t1["uid"], 5000)   # Derbi beraberlik toplam 15K
                 db.update_lc_balance(t2["uid"], 5000)
 
         db.save_match(t1["uid"], t2["uid"], g1, g2, 0)
@@ -3227,8 +3226,8 @@ async def daily_match_job(context):
 
     # BYE takıma küçük teselli ödülü
     if bye_team:
-        db.update_lc_balance(bye_team["uid"], 1500)
-        summary += f"\n🛌 *{bye_team['name']}* BYE — +1.500 LC dinlenme primi\n"
+        db.update_lc_balance(bye_team["uid"], 5000)
+        summary += f"\n🛌 *{bye_team['name']}* BYE — +5.000 LC dinlenme primi\n"
 
     # Bot engelleyenleri duyur
     if removed_blocked:

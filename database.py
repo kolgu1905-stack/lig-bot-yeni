@@ -3003,6 +3003,19 @@ def buy_from_market(listing_id, buyer_uid):
         conn.commit()
         return seller_uid, pname, rating, pos, price
 
+def remove_from_market_by_player(seller_uid, player_name):
+    """Oyuncunun pazar ilanını kaldır (satılmamış ilanlar)."""
+    p = ph()
+    with connect() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            f"DELETE FROM market_listings WHERE seller_user_id={p} AND LOWER(player_name)=LOWER({p}) AND sold=0",
+            (seller_uid, player_name)
+        )
+        affected = cur.rowcount
+        conn.commit()
+        return affected > 0
+
 def cleanup_old_market(days=7):
     """7 gün dolanları iptal et."""
     from datetime import datetime, timedelta
