@@ -1072,8 +1072,19 @@ def update_lc_balance(user_id: int, amount: int):
     p = ph()
     with connect() as conn:
         cur = conn.cursor()
-        cur.execute(f"UPDATE lig_teams SET lc_balance=lc_balance+{p} WHERE user_id={p}",
-                   (amount, user_id))
+        # Bakiye asla 0'ın altına düşmesin
+        if USE_PG and DATABASE_URL:
+            cur.execute(f"""
+                UPDATE lig_teams
+                SET lc_balance = GREATEST(0, lc_balance + {p})
+                WHERE user_id={p}
+            """, (amount, user_id))
+        else:
+            cur.execute(f"""
+                UPDATE lig_teams
+                SET lc_balance = MAX(0, lc_balance + {p})
+                WHERE user_id={p}
+            """, (amount, user_id))
         conn.commit()
 
 def get_squad(user_id: int):
@@ -3011,6 +3022,19 @@ def remove_from_market_by_player(seller_uid, player_name):
         cur.execute(
             f"DELETE FROM market_listings WHERE seller_user_id={p} AND LOWER(player_name)=LOWER({p}) AND sold=0",
             (seller_uid, player_name)
+        )
+        affected = cur.rowcount
+        conn.commit()
+        return affected > 0
+
+def remove_market_listing_by_id(seller_uid: int, listing_id: int):
+    """Kullanıcının belirli ilanını ID ile kaldır."""
+    p = ph()
+    with connect() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            f"DELETE FROM market_listings WHERE id={p} AND seller_user_id={p} AND sold=0",
+            (listing_id, seller_uid)
         )
         affected = cur.rowcount
         conn.commit()

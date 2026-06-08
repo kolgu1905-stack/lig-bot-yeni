@@ -2397,8 +2397,6 @@ async def cmd_sat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"💼 Yeni bütçe: *{db.get_lc_balance(uid):,}*"
         f"{market_note}",
         parse_mode="Markdown")
-
-    # Önemli oyuncu sat haberi (rating 85+)
     if rating >= 85:
         team_data = db.get_team(uid)
         team_name = team_data[0] if team_data else "Bilinmeyen"
@@ -4948,8 +4946,6 @@ async def cmd_sat_pazar(update: Update, context: ContextTypes.DEFAULT_TYPE):
         price = int(context.args[-1].replace(".", "").replace(",", ""))
         player_name = " ".join(context.args[:-1])
     except: return await update.message.reply_text("❌ Geçerli fiyat.")
-    if price < 1000:
-        return await update.message.reply_text("❌ Min 1.000 LC.")
 
     squad = db.get_squad(uid)
     target = None
@@ -4963,6 +4959,28 @@ async def cmd_sat_pazar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     pname, rating, pos = target
     if db.is_player_loaned(pname, uid):
         return await update.message.reply_text("❌ Kiralık oyuncu satılamaz.")
+
+    # Piyasa değeri üzerinden min/max fiyat kontrolü
+    market_value = lig.get_player_price(rating)
+    min_price = int(market_value * 0.30)
+    max_price = int(market_value * 1.35)
+
+    if price < min_price:
+        return await update.message.reply_text(
+            f"❌ *Fiyat çok düşük!*\n\n"
+            f"💎 Piyasa değeri: *{market_value:,} LC*\n"
+            f"📉 Min fiyat (%30): *{min_price:,} LC*\n"
+            f"📈 Max fiyat (%135): *{max_price:,} LC*\n\n"
+            f"💡 Örnek: `/sat_pazar {pname} {min_price:,}`",
+            parse_mode="Markdown")
+    if price > max_price:
+        return await update.message.reply_text(
+            f"❌ *Fiyat çok yüksek!*\n\n"
+            f"💎 Piyasa değeri: *{market_value:,} LC*\n"
+            f"📉 Min fiyat (%30): *{min_price:,} LC*\n"
+            f"📈 Max fiyat (%135): *{max_price:,} LC*\n\n"
+            f"💡 Örnek: `/sat_pazar {pname} {max_price:,}`",
+            parse_mode="Markdown")
 
     db.add_to_market(uid, pname, rating, pos, price)
     pos_em = {"GK": "🧤", "DEF": "🛡️", "MID": "⚙️", "FWD": "⚔️"}[pos]
@@ -5054,6 +5072,34 @@ async def cmd_pazardan_al(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"💰 *PAZAR SATIŞI!*\n\n{pos_em} *{pname}* (`{rating}`)\n📤 _{seller_name}_ → 📥 _{buyer_name}_\n💸 *{price:,} LC*",
             category="lig")
     except: pass
+
+
+async def cmd_pazar_geri(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Kendi pazar ilanını geri çek."""
+    uid = update.effective_user.id
+    if not db.get_team(uid):
+        return await update.message.reply_text("❌ Önce takım kur!", parse_mode="Markdown")
+    if not context.args:
+        return await update.message.reply_text(
+            "💡 Kullanım: `/pazar_geri <ilan_id>`\n"
+            "📋 İlan ID'lerini `/pazar` ile görebilirsin.",
+            parse_mode="Markdown")
+    try:
+        lid = int(context.args[0])
+    except:
+        return await update.message.reply_text("❌ Geçerli bir ilan ID gir.")
+
+    removed = db.remove_market_listing_by_id(uid, lid)
+    if not removed:
+        return await update.message.reply_text(
+            "❌ Bu ilan bulunamadı veya sana ait değil.\n"
+            "📋 Kendi ilanlarını `/pazar` ile kontrol et.",
+            parse_mode="Markdown")
+
+    await update.message.reply_text(
+        f"✅ *İlan geri çekildi!*\n"
+        f"🔖 İlan #{lid} pazardan kaldırıldı.",
+        parse_mode="Markdown")
 
 
 # ─────────────────────────────────────────────────────────────
