@@ -1097,6 +1097,27 @@ def get_squad(user_id: int):
         """, (user_id,))
         return fetchall(cur)
 
+def get_squad_detailed(user_id: int):
+    """Kadronun TÜM detaylarını döner (scout için): name, rating, base_rating, pos, starter, form, injury."""
+    p = ph()
+    with connect() as conn:
+        cur = conn.cursor()
+        try:
+            cur.execute(f"""
+                SELECT player_name, rating, COALESCE(base_rating, rating), pos, is_starter,
+                       COALESCE(form, 0), COALESCE(injury_matches, 0)
+                FROM lig_squad
+                WHERE user_id={p} ORDER BY rating DESC
+            """, (user_id,))
+            return fetchall(cur)
+        except Exception as e:
+            # Eski şema fallback
+            cur.execute(f"""
+                SELECT player_name, rating, rating, pos, is_starter, 0, 0
+                FROM lig_squad WHERE user_id={p} ORDER BY rating DESC
+            """, (user_id,))
+            return fetchall(cur)
+
 def add_player_to_squad(user_id: int, player_name: str, rating: int, pos: str):
     p = ph()
     with connect() as conn:
@@ -1214,7 +1235,7 @@ def create_lc_code(code: str, amount: int, max_uses: int = 1) -> bool:
             return False
 
 def use_lc_code(user_id: int, code: str):
-    """LC hediye kodu kullan."""
+    """LC hediye kodu kullan. Son kullanımda kod tamamen silinir → aynı isim tekrar oluşturulabilir."""
     p = ph()
     code = code.upper()
     with connect() as conn:
@@ -1225,7 +1246,11 @@ def use_lc_code(user_id: int, code: str):
             return False, "❌ LC kodu bulunamadı."
         amount, max_uses, used_count = row
         if used_count >= max_uses:
-            return False, f"❌ Bu kodun kullanım limiti doldu! ({used_count}/{max_uses})"
+            # Limit dolmuş ama silinmemiş eski kayıt → temizle
+            cur.execute(f"DELETE FROM lc_gift_codes WHERE code={p}", (code,))
+            cur.execute(f"DELETE FROM lc_used_codes WHERE code={p}", (code,))
+            conn.commit()
+            return False, f"❌ Bu kodun kullanım limiti dolmuş. Kod silindi, yenisi oluşturulabilir."
         cur.execute(f"SELECT 1 FROM lc_used_codes WHERE user_id={p} AND code={p}", (user_id, code))
         if fetchone(cur):
             return False, "❌ Bu LC kodunu zaten kullandınız."
@@ -1233,12 +1258,52 @@ def use_lc_code(user_id: int, code: str):
         cur.execute(f"SELECT 1 FROM lig_teams WHERE user_id={p}", (user_id,))
         if not fetchone(cur):
             return False, "❌ Önce `/takim_kur` ile lig hesabı oluşturun!"
+
+        # LC ekle
         cur.execute(f"UPDATE lig_teams SET lc_balance=lc_balance+{p} WHERE user_id={p}", (amount, user_id))
         cur.execute(f"INSERT INTO lc_used_codes (user_id,code) VALUES ({p},{p})", (user_id, code))
         cur.execute(f"UPDATE lc_gift_codes SET used_count=used_count+1 WHERE code={p}", (code,))
+
+        new_used = used_count + 1
+        kalan = max_uses - new_used
+
+        # Son kullanımsa → KODU TAMAMEN SİL (kayıtlar dahil)
+        # Bu sayede aynı isimle yeni kod tekrar oluşturulabilir
+        if kalan <= 0:
+            cur.execute(f"DELETE FROM lc_gift_codes WHERE code={p}", (code,))
+            cur.execute(f"DELETE FROM lc_used_codes WHERE code={p}", (code,))
+
         conn.commit()
-        kalan = max_uses - used_count - 1
-        return True, (amount, used_count+1, max_uses, kalan)
+        return True, (amount, new_used, max_uses, kalan)
+
+def get_all_lc_codes():
+    """Tüm aktif LC kodlarını detaylarıyla döner."""
+    p = ph()
+    with connect() as conn:
+        cur = conn.cursor()
+        try:
+            cur.execute("""
+                SELECT code, amount, max_uses, used_count, created_at
+                FROM lc_gift_codes
+                ORDER BY created_at DESC
+            """)
+            return fetchall(cur)
+        except Exception:
+            return []
+
+def delete_lc_code(code: str) -> bool:
+    """LC kodunu manuel sil (kayıtlarıyla beraber)."""
+    p = ph()
+    code = code.upper()
+    with connect() as conn:
+        cur = conn.cursor()
+        cur.execute(f"SELECT 1 FROM lc_gift_codes WHERE code={p}", (code,))
+        if not fetchone(cur):
+            return False
+        cur.execute(f"DELETE FROM lc_gift_codes WHERE code={p}", (code,))
+        cur.execute(f"DELETE FROM lc_used_codes WHERE code={p}", (code,))
+        conn.commit()
+        return True
 
 def deduct_lc_balance(user_id: int, amount: int):
     """LC bakiyesinden düşür (negatife düşmez)."""

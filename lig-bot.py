@@ -89,7 +89,8 @@ async def cmd_yardim(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/teklif — Oyuncu teklifi yap\n"
         "/teklif\\_kabul /teklif\\_red — Teklife yanıt\n"
         "/teklif\\_karsi — Karşı teklif yap\n"
-        "/kirala — Oyuncu kirala\n"
+        "/kirala @kullanici/<user\_id> — Kadroyu gör & teklif\n"
+        "/scout @kullanici/<user\_id> — 🕵️ Rakip casusluğu (15.000 LC)\n"
         "/sat\\_pazar — Pazara ilan ver\n"
         "/pazar — Pazar ilanlarını gör\n"
         "/pazardan\\_al — Pazardan al\n"
@@ -151,7 +152,9 @@ async def cmd_yardim(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "/lc\\_dusur `<id> <miktar>` — LC düşür\n"
             "/lc\\_toplu\\_yukle `<miktar>` — Herkese yükle\n"
             "/lc\\_id\\_yukle `<id1,id2,id3> <miktar>` — Seçili ID'lere yükle\n"
-            "/lc\\_kodolustur `<KOD> <miktar> <kişi>` — Kod oluştur\n\n"
+            "/lc\\_kodolustur `<KOD> <miktar> <kişi>` — Kod oluştur\n"
+            "/ligkodlar — Tüm aktif kodları ve kullanım durumunu gör\n"
+            "/lc\\_kod\\_sil `<KOD>` — Belirli kodu sil\n\n"
             "👥 *OYUNCU YÖNETİMİ*\n"
             "/lig\\_oyuncular — Tüm oyuncuları listele\n"
             "/lig\\_sil `@kullanici` — Oyuncu lig verisini sil\n\n"
@@ -2652,72 +2655,396 @@ async def cmd_teklif_karsi(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ── Açık Pazar ──
 
 async def cmd_kirala(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Kiralama teklifi (4 maç)."""
+    """Kiralama teklifi. Yanıtla / @kullanici / ID ile kullanılır.
+    /kirala                          → kadro listesi (yanıtla veya ID/@ sonra)
+    /kirala <oyuncu> <miktar>        → yanıtlayarak
+    /kirala @kullanici <oyuncu> <m>  → username ile
+    /kirala <user_id> <oyuncu> <m>   → ID ile
+    /kirala <user_id>                → o kişinin kadrosunu listele
+    """
     uid = update.effective_user.id
     if not db.get_team(uid):
         return await update.message.reply_text("❌ Önce takım kur!", parse_mode="Markdown")
 
     args = list(context.args)
-    target_id, target_name = await _resolve_target_user(update, context)
-    if target_id and args and args[0].startswith("@"):
-        args = args[1:]
 
+    # ── Hedef kullanıcıyı belirle ───────────────────────────────────────
+    target_id   = None
+    target_name = None
+
+    # 1) Mesaj yanıtıyla
+    if update.message.reply_to_message:
+        target_id   = update.message.reply_to_message.from_user.id
+        target_name = update.message.reply_to_message.from_user.first_name
+
+    # 2) @kullanici ile
+    elif args and args[0].startswith("@"):
+        uname = args[0][1:]
+        user  = db.get_user_by_username(uname)
+        if not user:
+            return await update.message.reply_text(f"❌ `@{uname}` bulunamadı.", parse_mode="Markdown")
+        target_id   = user[0]
+        target_name = user[1]
+        args = args[1:]  # @ argümanını tüket
+
+    # 3) Sayısal ID ile (ve geri kalanlar oyuncu + miktar)
+    elif args and args[0].isdigit():
+        candidate = int(args[0])
+        if db.get_team(candidate):
+            target_id   = candidate
+            target_name = db.get_owner_username(candidate)
+            args = args[1:]  # ID argümanını tüket
+        # Eğer lig hesabı yoksa hata ver
+        else:
+            return await update.message.reply_text(
+                f"❌ `{candidate}` ID\'li kullanıcının lig hesabı bulunamadı.",
+                parse_mode="Markdown")
+
+    # ── Hedef bulunamadı → yardım göster ───────────────────────────────
     if not target_id:
         return await update.message.reply_text(
-            "💡 Kullanım:\n"
-            "• Yanıtla: `/kirala <oyuncu> <miktar>`\n"
-            "• `/kirala @kullanici <oyuncu> <miktar>`\n\n"
-            "⏰ Süre: *4 maç*",
+            "📋 *KİRALAMA KOMUTU*\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "📌 *Kullanım şekilleri:*\n\n"
+            "1️⃣ *Mesajı yanıtlayarak:*\n"
+            "   `/kirala <oyuncu> <miktar>`\n\n"
+            "2️⃣ *Kullanıcı adıyla:*\n"
+            "   `/kirala @kullanici <oyuncu> <miktar>`\n\n"
+            "3️⃣ *ID ile:*\n"
+            "   `/kirala <user_id> <oyuncu> <miktar>`\n\n"
+            "4️⃣ *Kadro listesi için (oyuncu yazmadan):*\n"
+            "   `/kirala @kullanici`\n"
+            "   `/kirala <user_id>`\n"
+            "   Veya bir mesajı yanıtla\n\n"
+            "⏰ Kiralama süresi: *4 maç*\n"
+            "💰 Minimum ücret: *500 LC*",
             parse_mode="Markdown")
 
+    # Kendine kiralama kontrolü
+    if target_id == uid:
+        return await update.message.reply_text("❌ Kendi oyuncunu kiralayamazsın.")
+
+    target_team = db.get_team(target_id)
+    if not target_team:
+        return await update.message.reply_text("❌ Hedef oyuncunun lig hesabı yok.")
+
+    # ── Sadece kadro listesi isteniyor (oyuncu/miktar verilmedi) ────────
+    if len(args) == 0:
+        squad = db.get_squad(target_id)
+        if not squad:
+            return await update.message.reply_text(
+                f"❌ *{target_name}*\'ın kadrosunda oyuncu yok.", parse_mode="Markdown")
+
+        pos_em = {"GK": "🧤", "DEF": "🛡️", "MID": "⚙️", "FWD": "⚔️"}
+        pos_order = {"GK": 0, "DEF": 1, "MID": 2, "FWD": 3}
+        squad_sorted = sorted(squad, key=lambda x: (pos_order.get(x[2], 9), -x[1]))
+
+        lines = [
+            f"👥 *{target_team[0]}* — Kadro",
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━",
+            f"💡 Kiralamak için:",
+            f"`/kirala {target_id} <oyuncu adı> <miktar>`",
+            "",
+        ]
+        for p_name, rating, pos, starter in squad_sorted:
+            loaned = db.is_player_loaned(p_name, target_id)
+            kilit  = " 🔒" if loaned else ""
+            star   = "⭐" if starter else "  "
+            lines.append(f"{star} {pos_em.get(pos,'⚽')} `{rating}` *{p_name}*{kilit}")
+
+        lines.append("")
+        lines.append("🔒 = Kiralık (teklif gönderilemez)")
+        return await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+
+    # ── Oyuncu adı ve miktar bekleniyor ─────────────────────────────────
     if len(args) < 2:
-        return await update.message.reply_text("💡 `/kirala <oyuncu> <miktar>`", parse_mode="Markdown")
+        squad = db.get_squad(target_id)
+        pos_em = {"GK": "🧤", "DEF": "🛡️", "MID": "⚙️", "FWD": "⚔️"}
+        oyuncular = " | ".join(
+            f"{pos_em.get(pos,'⚽')}{name}" for name, _, pos, _ in squad[:8]
+        ) if squad else "Kadro boş"
+        return await update.message.reply_text(
+            f"💡 `/kirala {target_id} <oyuncu> <miktar>`\n\n"
+            f"👥 *{target_team[0]}* kadrosundan bazıları:\n_{oyuncular}_\n\n"
+            f"📋 Tam liste için: `/kirala {target_id}`",
+            parse_mode="Markdown")
 
     try:
-        amount = int(args[-1].replace(".", "").replace(",", ""))
+        amount      = int(args[-1].replace(".", "").replace(",", ""))
         player_name = " ".join(args[:-1])
     except:
-        return await update.message.reply_text("❌ Geçerli miktar.")
+        return await update.message.reply_text("❌ Miktar geçersiz. Örnek: `/kirala 123456 Messi 10000`", parse_mode="Markdown")
 
     if amount < 500:
-        return await update.message.reply_text("❌ Min 500 LC")
+        return await update.message.reply_text("❌ Minimum kiralama ücreti *500 LC*\'dir.", parse_mode="Markdown")
 
+    # ── Oyuncuyu kadrodan bul ────────────────────────────────────────────
     squad = db.get_squad(target_id)
     target_player = None
     for p_name, rating, pos, starter in squad:
         if player_name.lower() in p_name.lower():
             target_player = (p_name, rating, pos)
             break
+
     if not target_player:
-        return await update.message.reply_text(f"❌ *{player_name}* yok.", parse_mode="Markdown")
+        # Yakın isim önerisi
+        benzer = [p for p, r, po, s in squad if any(
+            w in p.lower() for w in player_name.lower().split()
+        )][:3]
+        hint = ("\n\n💡 Benzer oyuncular: " + ", ".join(f"*{b}*" for b in benzer)) if benzer else ""
+        return await update.message.reply_text(
+            f"❌ *{player_name}* kadrosunda bulunamadı.{hint}\n\n"
+            f"📋 Tam liste: `/kirala {target_id}`",
+            parse_mode="Markdown")
 
     pname, rating, pos = target_player
 
     if db.is_player_loaned(pname, target_id):
-        return await update.message.reply_text(f"❌ *{pname}* zaten kiralık.", parse_mode="Markdown")
+        return await update.message.reply_text(
+            f"❌ *{pname}* zaten başka bir kulübe kiralık.\n"
+            f"Kiralık süre bitince tekrar teklif yapabilirsin.",
+            parse_mode="Markdown")
 
-    if db.get_lc_balance(uid) < amount:
-        return await update.message.reply_text(f"❌ Yetersiz LC.")
+    my_lc = db.get_lc_balance(uid)
+    if my_lc < amount:
+        return await update.message.reply_text(
+            f"❌ Yetersiz LC!\n"
+            f"💎 Bakiyen: *{my_lc:,} LC* | Gerekli: *{amount:,} LC*",
+            parse_mode="Markdown")
 
+    # ── Teklif oluştur ve bildir ─────────────────────────────────────────
     offer_id = db.create_offer(uid, target_id, pname, amount, is_loan=True, loan_matches=4)
 
-    pos_em = {"GK": "🧤", "DEF": "🛡️", "MID": "⚙️", "FWD": "⚔️"}[pos]
+    pos_em  = {"GK": "🧤", "DEF": "🛡️", "MID": "⚙️", "FWD": "⚔️"}[pos]
     my_team = db.get_team(uid)
+
     teklif_msg = (
-        f"📩 *KİRALAMA TEKLİFİ!*\n\n"
-        f"{pos_em} *{pname}* (`{rating}`)\n"
-        f"💰 Kira: *{amount:,} LC*\n"
+        f"📩 *KİRALAMA TEKLİFİ GELDİ!*\n\n"
+        f"{pos_em} *{pname}* (`{rating}` · {pos})\n"
+        f"💰 Kira ücreti: *{amount:,} LC*\n"
         f"⏰ Süre: *4 maç*\n"
         f"🏟️ Teklif eden: *{my_team[0]}*\n\n"
-        f"• `/teklif_kabul {offer_id}` veya `/teklif_red {offer_id}`"
+        f"✅ Kabul: `/teklif_kabul {offer_id}`\n"
+        f"❌ Red: `/teklif_red {offer_id}`"
     )
     try:
         await context.bot.send_message(chat_id=target_id, text=teklif_msg, parse_mode="Markdown")
-    except: pass
+    except:
+        pass
 
     await update.message.reply_text(
-        f"✅ Kiralama teklifi gönderildi!\n🆔 `{offer_id}`",
+        f"✅ *Kiralama teklifi gönderildi!*\n\n"
+        f"{pos_em} *{pname}* (`{rating}`) → *{target_team[0]}*\n"
+        f"💰 *{amount:,} LC* | ⏰ 4 maç\n"
+        f"🆔 Teklif no: `{offer_id}`",
         parse_mode="Markdown")
+
+async def cmd_scout(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Gizli scout ekibi — 15.000 LC karşılığında karşı takımın TÜM detaylarını öğren.
+    Kullanım:
+    /scout                        → mesajı yanıtlayarak
+    /scout @kullanici             → username ile
+    /scout <user_id>              → ID ile
+    """
+    uid = update.effective_user.id
+    SCOUT_COST = 15_000
+
+    if not db.get_team(uid):
+        return await update.message.reply_text("❌ Önce takım kur!", parse_mode="Markdown")
+
+    # ── Hedef belirleme ─────────────────────────────────────────────────
+    target_id   = None
+    target_name = None
+    args = list(context.args)
+
+    if update.message.reply_to_message:
+        target_id   = update.message.reply_to_message.from_user.id
+        target_name = update.message.reply_to_message.from_user.first_name
+    elif args and args[0].startswith("@"):
+        uname = args[0][1:]
+        user  = db.get_user_by_username(uname)
+        if not user:
+            return await update.message.reply_text(f"❌ `@{uname}` bulunamadı.", parse_mode="Markdown")
+        target_id   = user[0]
+        target_name = user[1]
+    elif args and args[0].isdigit():
+        target_id = int(args[0])
+        if not db.get_team(target_id):
+            return await update.message.reply_text(
+                f"❌ `{target_id}` ID'li kullanıcının lig hesabı yok.", parse_mode="Markdown")
+        target_name = db.get_owner_username(target_id)
+
+    if not target_id:
+        return await update.message.reply_text(
+            "🕵️ *GİZLİ SCOUT EKİBİ*\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "📋 Karşı takımın TÜM detaylarını öğren:\n"
+            "  • Tam kadro (rating, base, pozisyon)\n"
+            "  • Her oyuncunun form ve sakatlık durumu\n"
+            "  • İlk 11 dizilişi\n"
+            "  • Takım formu ve son maç sonuçları\n"
+            "  • LC bakiyesi\n"
+            "  • Lig istatistikleri\n\n"
+            f"💰 *Ücret:* {SCOUT_COST:,} LC / bakış\n\n"
+            "📌 *Kullanım:*\n"
+            "• Mesajı yanıtla: `/scout`\n"
+            "• Kullanıcı adı: `/scout @kullanici`\n"
+            "• ID ile: `/scout <user_id>`",
+            parse_mode="Markdown")
+
+    if target_id == uid:
+        return await update.message.reply_text("❌ Kendi takımını gözlemleyemezsin. `/takimim` kullan.", parse_mode="Markdown")
+
+    target_team = db.get_team(target_id)
+    if not target_team:
+        return await update.message.reply_text("❌ Hedef oyuncunun lig hesabı yok.")
+
+    # ── LC kontrolü ─────────────────────────────────────────────────────
+    my_lc = db.get_lc_balance(uid)
+    if my_lc < SCOUT_COST:
+        return await update.message.reply_text(
+            f"❌ *Yetersiz LC!*\n\n"
+            f"💎 Bakiyen: *{my_lc:,} LC*\n"
+            f"💰 Scout ücreti: *{SCOUT_COST:,} LC*\n"
+            f"📉 Eksik: *{SCOUT_COST - my_lc:,} LC*",
+            parse_mode="Markdown")
+
+    # ── Ücret kes ───────────────────────────────────────────────────────
+    db.deduct_lc_balance(uid, SCOUT_COST)
+    new_balance = db.get_lc_balance(uid)
+
+    # ── Bilgileri topla ─────────────────────────────────────────────────
+    team_name, lc_balance, formation, wins, draws, losses, gf, ga = target_team
+    pts = wins * 3 + draws
+    avg_per_game = round((gf - ga) / max(1, wins + draws + losses), 2)
+
+    # Takım formu
+    try:
+        team_form = db.get_team_form(target_id)
+    except:
+        team_form = 0
+
+    # Son maç sonuçları
+    try:
+        from database import connect, ph
+        p = ph()
+        with connect() as conn:
+            cur = conn.cursor()
+            cur.execute(f"SELECT recent_results FROM lig_teams WHERE user_id={p}", (target_id,))
+            row = cur.fetchone()
+            recent = row[0] if row and row[0] else ""
+    except:
+        recent = ""
+
+    # Detaylı kadro
+    squad = db.get_squad_detailed(target_id)
+
+    # ── Raporu oluştur ──────────────────────────────────────────────────
+    pos_em   = {"GK": "🧤", "DEF": "🛡️", "MID": "⚙️", "FWD": "⚔️"}
+    pos_order = {"GK": 0, "DEF": 1, "MID": 2, "FWD": 3}
+
+    # Form göstergesi
+    if team_form >= 3: form_emoji = "🔥"
+    elif team_form >= 1: form_emoji = "📈"
+    elif team_form <= -3: form_emoji = "❄️"
+    elif team_form <= -1: form_emoji = "📉"
+    else: form_emoji = "➖"
+
+    # Son maç sonuçları görselleştir
+    sonuc_em = {"W": "🟢", "D": "🟡", "L": "🔴"}
+    recent_visual = " ".join(sonuc_em.get(c, "⚪") for c in recent[-5:]) if recent else "_henüz maç yok_"
+
+    lines = [
+        "╔══════════════════════════╗",
+        "║  🕵️  SCOUT RAPORU  ║",
+        "╚══════════════════════════╝",
+        "",
+        f"🎯 *Hedef:* {team_name}",
+        f"👤 *Sahip:* {target_name} (`{target_id}`)",
+        "",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━",
+        "📊 *TAKIM İSTATİSTİKLERİ*",
+        f"  🏆 Puan: *{pts}* | {wins}G {draws}B {losses}M",
+        f"  ⚽ Goller: *{gf}* atılan / *{ga}* yenilen ({gf-ga:+d})",
+        f"  📈 Ort. averaj: *{avg_per_game}* / maç",
+        f"  💎 LC Bakiye: *{lc_balance:,} LC*",
+        f"  ⚙️ Diziliş: *{formation or '4-3-3'}*",
+        "",
+        f"{form_emoji} *Form:* `{team_form:+d}`",
+        f"📅 *Son 5 maç:* {recent_visual}",
+        "",
+    ]
+
+    if squad:
+        # İlk 11 ve yedekler ayır
+        starters = [s for s in squad if s[4]]  # is_starter
+        bench    = [s for s in squad if not s[4]]
+
+        lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━")
+        lines.append(f"⭐ *İLK 11* ({len(starters)} oyuncu)")
+        lines.append("")
+
+        starters_sorted = sorted(starters, key=lambda x: (pos_order.get(x[3], 9), -x[1]))
+        for pname, rating, base_rating, pos, starter, p_form, injury in starters_sorted:
+            em = pos_em.get(pos, "⚽")
+            # Form gösterimi
+            if p_form >= 2: pf = "🔥"
+            elif p_form >= 1: pf = "📈"
+            elif p_form <= -2: pf = "❄️"
+            elif p_form <= -1: pf = "📉"
+            else: pf = "➖"
+
+            # Sakatlık
+            inj_str = f" 🤕 *{injury} maç*" if injury > 0 else ""
+
+            # Rating değişimi
+            diff = rating - base_rating
+            diff_str = f" (base:{base_rating}, {diff:+d})" if diff != 0 else f" (base:{base_rating})"
+
+            lines.append(f"  {em} `{rating}` *{pname}* {pf} _f:{p_form:+d}_{inj_str}")
+            lines.append(f"      {diff_str}")
+
+        if bench:
+            lines.append("")
+            lines.append(f"🪑 *YEDEK KULÜBESİ* ({len(bench)} oyuncu)")
+            lines.append("")
+            bench_sorted = sorted(bench, key=lambda x: (pos_order.get(x[3], 9), -x[1]))
+            for pname, rating, base_rating, pos, starter, p_form, injury in bench_sorted:
+                em = pos_em.get(pos, "⚽")
+                if p_form >= 2: pf = "🔥"
+                elif p_form >= 1: pf = "📈"
+                elif p_form <= -2: pf = "❄️"
+                elif p_form <= -1: pf = "📉"
+                else: pf = "➖"
+                inj_str = f" 🤕{injury}m" if injury > 0 else ""
+                lines.append(f"  {em} `{rating}` *{pname}* {pf}{inj_str}")
+    else:
+        lines.append("⚠️ _Kadroda oyuncu yok._")
+
+    lines.append("")
+    lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━")
+    lines.append("📖 *LEJANT:*")
+    lines.append("  🔥 Çok iyi form  📈 İyi  ➖ Normal  📉 Düşük  ❄️ Çok düşük")
+    lines.append("  🤕 Sakatlık (kaç maç kalan)")
+    lines.append("")
+    lines.append(f"💸 Ücret: *{SCOUT_COST:,} LC* kesildi")
+    lines.append(f"💎 Yeni bakiyen: *{new_balance:,} LC*")
+    lines.append("")
+    lines.append("🤫 _Bu rapor gizlidir. Sadece sen görüyorsun._")
+
+    msg = "\n".join(lines)
+
+    # Telegram limiti — gerekirse böl
+    if len(msg) > 3900:
+        # İki parçaya böl: istatistikler + kadro
+        split_idx = next((i for i, l in enumerate(lines) if "İLK 11" in l), len(lines)//2)
+        part1 = "\n".join(lines[:split_idx])
+        part2 = "🕵️ *SCOUT RAPORU (devamı)*\n\n" + "\n".join(lines[split_idx:])
+        await update.message.reply_text(part1, parse_mode="Markdown")
+        await update.message.reply_text(part2, parse_mode="Markdown")
+    else:
+        await update.message.reply_text(msg, parse_mode="Markdown")
+
 
 async def cmd_sat_pazar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Oyuncuyu açık pazara koy."""
@@ -3591,6 +3918,116 @@ async def cmd_lc_kodolustur(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "❌ Kullanım: `/lc_kodolustur <KOD> <miktar> <kişi>`\n"
             "Örnek: `/lc_kodolustur SAMPIYON 10000 50`",
             parse_mode="Markdown")
+
+async def cmd_ligkodlar(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Admin: Tüm aktif LC kodlarını ve kullanım durumlarını listele."""
+    if not is_admin(update.effective_user.id):
+        return
+
+    codes = db.get_all_lc_codes()
+    if not codes:
+        return await update.message.reply_text(
+            "📭 *Aktif LC kodu yok.*\n\n"
+            "💡 Yeni kod oluştur: `/lc_kodolustur <KOD> <miktar> <kişi>`",
+            parse_mode="Markdown")
+
+    lines = [
+        "╔══════════════════════════╗",
+        "║  🎟  AKTİF LC KODLARI  ║",
+        "╚══════════════════════════╝",
+        "",
+        f"📊 Toplam aktif: *{len(codes)}* kod",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━",
+        "",
+    ]
+
+    toplam_dagitilabilir = 0
+    toplam_dagitilan     = 0
+
+    for code, amount, max_uses, used_count, created_at in codes:
+        kalan = max_uses - used_count
+        durum = "🟢 Aktif" if kalan > 0 else "🔴 Bitti"
+
+        # Doluluk barı
+        if max_uses > 0:
+            doluluk = used_count / max_uses
+            bar_dolu = int(doluluk * 10)
+            bar = "█" * bar_dolu + "░" * (10 - bar_dolu)
+            yuzde = int(doluluk * 100)
+        else:
+            bar = "░" * 10
+            yuzde = 0
+
+        # Tarih
+        tarih_str = ""
+        if created_at:
+            try:
+                from datetime import datetime
+                dt = datetime.fromisoformat(created_at)
+                tarih_str = dt.strftime("%d.%m.%Y %H:%M")
+            except:
+                tarih_str = created_at[:16]
+
+        toplam_dagitilabilir += amount * max_uses
+        toplam_dagitilan     += amount * used_count
+
+        lines.append(f"🎟 `{code}` — {durum}")
+        lines.append(f"   💎 *{amount:,} LC* / kişi")
+        lines.append(f"   👥 Kullanım: *{used_count}/{max_uses}* (kalan: *{kalan}*)")
+        lines.append(f"   📊 `{bar}` {yuzde}%")
+        if tarih_str:
+            lines.append(f"   📅 _{tarih_str}_")
+        lines.append("")
+
+    lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━")
+    lines.append(f"💰 *Dağıtılan:* {toplam_dagitilan:,} LC")
+    lines.append(f"💎 *Dağıtılabilir kalan:* {toplam_dagitilabilir - toplam_dagitilan:,} LC")
+    lines.append("")
+    lines.append("🗑️ Kod sil: `/lc_kod_sil <KOD>`")
+    lines.append("➕ Yeni kod: `/lc_kodolustur <KOD> <miktar> <kişi>`")
+
+    # Telegram mesaj limiti 4096 char, böl
+    msg = "\n".join(lines)
+    if len(msg) > 3900:
+        # Parçalı gönder
+        chunks = []
+        cur_chunk = []
+        cur_len = 0
+        for line in lines:
+            if cur_len + len(line) > 3800:
+                chunks.append("\n".join(cur_chunk))
+                cur_chunk = [line]
+                cur_len = len(line)
+            else:
+                cur_chunk.append(line)
+                cur_len += len(line) + 1
+        if cur_chunk:
+            chunks.append("\n".join(cur_chunk))
+        for chunk in chunks:
+            await update.message.reply_text(chunk, parse_mode="Markdown")
+    else:
+        await update.message.reply_text(msg, parse_mode="Markdown")
+
+async def cmd_lc_kod_sil(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Admin: Belirtilen LC kodunu sil."""
+    if not is_admin(update.effective_user.id):
+        return
+
+    if not context.args:
+        return await update.message.reply_text(
+            "❌ *Kullanım:* `/lc_kod_sil <KOD>`\n\n"
+            "Örnek: `/lc_kod_sil SAMPIYON`\n"
+            "📋 Tüm kodlar için: `/ligkodlar`",
+            parse_mode="Markdown")
+
+    code = context.args[0].upper()
+    if db.delete_lc_code(code):
+        await update.message.reply_text(
+            f"✅ *Kod silindi:* `{code}`\n"
+            f"_Aynı isimle yeni kod oluşturabilirsin._",
+            parse_mode="Markdown")
+    else:
+        await update.message.reply_text(f"❌ `{code}` kodu bulunamadı.", parse_mode="Markdown")
 
 async def cmd_terfi_dusme(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Admin: Manuel terfi/düşme."""
@@ -4644,6 +5081,7 @@ def main():
         ("teklif_red",      cmd_teklif_red),
         ("teklif_karsi",    cmd_teklif_karsi),
         ("kirala",          cmd_kirala),
+        ("scout",           cmd_scout),
         ("sat_pazar",       cmd_sat_pazar),
         ("pazar",           cmd_pazar),
         ("pazardan_al",     cmd_pazardan_al),
@@ -4667,6 +5105,8 @@ def main():
         ("lc_toplu_yukle",  cmd_lc_toplu_yukle),
         ("lc_id_yukle",     cmd_lc_id_yukle),
         ("lc_kodolustur",   cmd_lc_kodolustur),
+        ("ligkodlar",       cmd_ligkodlar),
+        ("lc_kod_sil",      cmd_lc_kod_sil),
         ("terfi_dusme",     cmd_terfi_dusme),
         ("fikstur_olustur", cmd_fikstur_olustur),
         ("maclari_basla",   cmd_maclari_basla),
