@@ -67,51 +67,110 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_yardim(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
+
+    # ── Sayfa 1: Genel komutlar ──
     msg1 = (
-        "📋 *TÜRK BUDUN LİGİ — KOMUTLAR*\n\n"
+        "📋 *TÜRK BUDUN LİGİ — KOMUTLAR*\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
         "🏁 *BAŞLANGIÇ*\n"
-        "/lig /takim\\_kur /takimim /form\n\n"
+        "/lig — Ana menü\n"
+        "/takim\\_kur — Takım oluştur\n"
+        "/takimim — Takım bilgin\n"
+        "/form — Güncel form\n\n"
         "🛒 *TRANSFER MARKETİ*\n"
         "/market — Tüm müsait oyuncular\n"
         "/market GK/DEF/MID/FWD — Pozisyon filtresi\n"
-        "/market <isim> — Oyuncu ara\n"
-        "/transfer /sat /akademi /akademi\\_al\n\n"
+        "/market `<isim>` — Oyuncu ara\n"
+        "/transfer — Market'ten oyuncu al\n"
+        "/sat — Oyuncuyu markete sat\n"
+        "/akademi — Genç oyuncu yetiştir\n"
+        "/akademi\\_al — Akademi oyuncusu al\n\n"
         "🤝 *OYUNCULAR ARASI*\n"
-        "/teklif /teklif\\_kabul /teklif\\_red\n"
-        "/teklif\\_karsi /kirala\n"
-        "/sat\\_pazar /pazar /pazardan\\_al\n\n"
+        "/teklif — Oyuncu teklifi yap\n"
+        "/teklif\\_kabul /teklif\\_red — Teklife yanıt\n"
+        "/teklif\\_karsi — Karşı teklif yap\n"
+        "/kirala — Oyuncu kirala\n"
+        "/sat\\_pazar — Pazara ilan ver\n"
+        "/pazar — Pazar ilanlarını gör\n"
+        "/pazardan\\_al — Pazardan al\n"
+        "/pazar\\_geri — İlanını geri çek\n\n"
         "👔 *ANTRENÖR*\n"
-        "/antrenor /hoca\\_tut /hoca\\_birak\n\n"
+        "/antrenor — Müsait antrenörler\n"
+        "/hoca\\_tut — Antrenör tut\n"
+        "/hoca\\_birak — Antrenörü serbest bırak\n\n"
         "🏋️ *GELİŞİM*\n"
-        "/antrenman /fizyo /motivasyon\n"
-        "/tatil /kamp /kaptan\n\n"
-        "⚽ *İLK 11*\n"
-        "/ilk11 — Mevcut ilk 11'i gör\n"
-        "/ilk11\\_ekle /ilk11\\_cikar /ilk11\\_sifirla\n\n"
-        "⚙️ *TAKTİK*\n"
-        "/taktik /dizilis /taktik\\_sec\n\n"
-        "🏆 *SIRALAMA*\n"
-        "/lig\\_top /puandurumu /ligler /sampiyonlar\n\n"
-        "📅 *MAÇ*\n"
-        "/fikstur /tahmin /rakip /macbaslat\n"
-        "/haberler /sosyal\n\n"
-        "💱 *EKONOMİ*\n"
-        "/kur /cevir /lc\\_bakiye /lc\\_kod"
+        "/antrenman — Oyuncu antrenmanı\n"
+        "/fizyo — Sakatlık iyileştir\n"
+        "/motivasyon — Moral yükselt\n"
+        "/tatil — Oyuncuyu dinlendir\n"
+        "/kamp — Takım kampı\n"
+        "/kaptan — Kaptan belirle"
     )
     await update.message.reply_text(msg1, parse_mode="Markdown")
+
+    # ── Sayfa 2: Maç, sıralama, ekonomi ──
+    msg2 = (
+        "⚽ *İLK 11 & TAKTİK*\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "/ilk11 — Mevcut ilk 11'i gör\n"
+        "/ilk11\\_ekle — İlk 11'e oyuncu ekle\n"
+        "/ilk11\\_cikar — İlk 11'den çıkar\n"
+        "/ilk11\\_sifirla — Kadroyu sıfırla\n"
+        "/taktik — Mevcut taktik\n"
+        "/dizilis — Diziliş düzenle\n"
+        "/taktik\\_sec — Taktik seç\n\n"
+        "🏆 *SIRALAMA & LİG*\n"
+        "/lig\\_top — Lider tablosu\n"
+        "/puandurumu — Tam puan durumu\n"
+        "/ligler — Tüm lig kademeleri\n"
+        "/sampiyonlar — Geçmiş şampiyonlar\n\n"
+        "📅 *MAÇ & TAHMİN*\n"
+        "/fikstur — Fikstürü gör\n"
+        "/rakip — Bir sonraki rakip\n"
+        "/macbaslat — Manuel maç başlat\n"
+        "/tahmin — Maç tahmini yap\n"
+        "/haberler — Kulüp haberleri\n"
+        "/sosyal — Sosyal medya\n\n"
+        "💱 *EKONOMİ & LC*\n"
+        "/lc\\_bakiye — LC bakiyeni gör\n"
+        "/lc\\_kod — LC kodu kullan\n"
+        "/kur — Döviz kuru\n"
+        "/cevir — Para çevir"
+    )
+    await update.message.reply_text(msg2, parse_mode="Markdown")
+
+    # ── Admin paneli ──
     if is_admin(uid):
-        await update.message.reply_text(
-            "🔐 *ADMİN KOMUTLARI*\n\n"
-            "/lc\\_yukle /lc\\_dusur /lc\\_toplu\\_yukle\n"
-            "/lc\\_kodolustur /lig\\_sil\n"
+        msg_admin = (
+            "🔐 *ADMİN KOMUTLARI*\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "💎 *LC YÖNETİMİ*\n"
+            "/lc\\_yukle `<id> <miktar>` — Tekli yükle\n"
+            "/lc\\_yukle `@kullanici <miktar>` — Username ile\n"
+            "/lc\\_yukle `<miktar>` — Yanıtlayarak yükle\n"
+            "/lc\\_dusur `<id> <miktar>` — LC düşür\n"
+            "/lc\\_toplu\\_yukle `<miktar>` — Herkese yükle\n"
+            "/lc\\_id\\_yukle `<id1,id2,id3> <miktar>` — Seçili ID'lere yükle\n"
+            "/lc\\_kodolustur `<KOD> <miktar> <kişi>` — Kod oluştur\n\n"
+            "👥 *OYUNCU YÖNETİMİ*\n"
             "/lig\\_oyuncular — Tüm oyuncuları listele\n"
-            "/lig\\_tam\\_sifirla — Sezonu sıfırla\n"
-            "/terfi\\_dusme /fikstur\\_olustur\n"
-            "/maclari\\_basla /sezon\\_bitir /sezon\\_sifirla\n"
-            "/lig\\_yayin /casino\\_yayin\n"
-            "/yayin\\_test /yayin\\_durum",
-            parse_mode="Markdown"
+            "/lig\\_sil `@kullanici` — Oyuncu lig verisini sil\n\n"
+            "🏆 *SEZON YÖNETİMİ*\n"
+            "/sezon\\_sifirla — Sezonu sıfırla (ödüller dağıtılır)\n"
+            "/sezon\\_bitir — Sezonu erken bitir\n"
+            "/fikstur\\_olustur — Yeni fikstür oluştur\n"
+            "/maclari\\_basla — Bugünkü maçları başlat\n"
+            "/terfi\\_dusme — Manuel terfi/düşme uygula\n"
+            "/lig\\_tam\\_sifirla — Tüm lig verilerini sil ⚠️\n\n"
+            "📢 *YAYIN & DUYURU*\n"
+            "/lig\\_yayin — Bu kanalı lig yayın kanalı yap\n"
+            "/casino\\_yayin — Bu kanalı casino yayın kanalı yap\n"
+            "/yayin\\_test — Yayın kanalını test et\n"
+            "/yayin\\_durum — Yayın durumunu gör\n"
+            "/lig\\_duyuru `<mesaj>` — Kanala duyuru at\n"
+            "/lig\\_duyuru\\_dm `<mesaj>` — Herkese DM duyuru"
         )
+        await update.message.reply_text(msg_admin, parse_mode="Markdown")
 
 # ════════════════════════════════════════════
 # LİG KOMUTLARI (bot.py'den taşındı)
@@ -3341,18 +3400,41 @@ async def cmd_lc_kod(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ─────────────────────────────────────────────────────────────
 
 async def cmd_lc_yukle(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Tek bir kullanıcıya LC yükle."""
+    """Tek bir kullanıcıya LC yükle. Yanıtla, ID ile veya @kullanici ile kullanılır."""
     if not is_admin(update.effective_user.id): return
     try:
         if update.message.reply_to_message:
-            tid = update.message.reply_to_message.from_user.id
+            tid   = update.message.reply_to_message.from_user.id
             tname = update.message.reply_to_message.from_user.first_name
+            if not context.args:
+                return await update.message.reply_text(
+                    "❌ Miktar belirtmedin.\n"
+                    "Kullanım: Mesajı yanıtla + `/lc_yukle <miktar>`",
+                    parse_mode="Markdown")
             amt = int(context.args[0])
+        elif context.args and context.args[0].startswith("@"):
+            username = context.args[0][1:]
+            user = db.get_user_by_username(username)
+            if not user:
+                return await update.message.reply_text(f"❌ `@{username}` bulunamadı.", parse_mode="Markdown")
+            tid, tname = user[0], user[1]
+            amt = int(context.args[1])
+        elif len(context.args) >= 2:
+            tid   = int(context.args[0])
+            amt   = int(context.args[1])
+            tname = db.get_owner_username(tid)
         else:
-            tid, amt = int(context.args[0]), int(context.args[1])
-            tname = f"ID:{tid}"
+            return await update.message.reply_text(
+                "❌ *Kullanım:*\n"
+                "• Mesajı yanıtla: `/lc_yukle <miktar>`\n"
+                "• ID ile: `/lc_yukle <user_id> <miktar>`\n"
+                "• Kullanıcı adı: `/lc_yukle @kullanici <miktar>`\n"
+                "• Virgüllü çoklu: `/lc_id_yukle <id1,id2,id3> <miktar>`",
+                parse_mode="Markdown")
 
-        # Lig hesabı var mı kontrol
+        if amt <= 0:
+            return await update.message.reply_text("❌ Miktar 0'dan büyük olmalı.")
+
         if not db.get_team(tid):
             return await update.message.reply_text(
                 f"❌ *{tname}* henüz lig hesabı oluşturmamış!\n"
@@ -3360,13 +3442,17 @@ async def cmd_lc_yukle(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parse_mode="Markdown")
 
         db.update_lc_balance(tid, amt)
+        new_bal = db.get_lc_balance(tid)
         await update.message.reply_text(
-            f"✅ *{tname}* kullanıcısına *{amt:,} LC* yüklendi.",
+            f"✅ *{tname}* (`{tid}`) kullanıcısına *+{amt:,} LC* yüklendi.\n"
+            f"💎 Yeni bakiye: *{new_bal:,} LC*",
             parse_mode="Markdown")
-    except:
+    except (ValueError, IndexError):
         await update.message.reply_text(
-            "❌ Kullanım: `/lc_yukle <miktar>` (yanıtlayarak)\n"
-            "Veya: `/lc_yukle <user_id> <miktar>`",
+            "❌ *Kullanım:*\n"
+            "• Mesajı yanıtla: `/lc_yukle <miktar>`\n"
+            "• ID ile: `/lc_yukle <user_id> <miktar>`\n"
+            "• Kullanıcı adı: `/lc_yukle @kullanici <miktar>`",
             parse_mode="Markdown")
 
 async def cmd_lc_dusur(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -3408,7 +3494,78 @@ async def cmd_lc_toplu_yukle(update: Update, context: ContextTypes.DEFAULT_TYPE)
             f"💎 Toplam dağıtılan: *{amt * affected:,} LC*",
             parse_mode="Markdown")
     except:
-        await update.message.reply_text("❌ Kullanım: `/lc_toplu_yukle <miktar>`", parse_mode="Markdown")
+        await update.message.reply_text(
+            "❌ *Kullanım:* `/lc_toplu_yukle <miktar>`\n"
+            "_Ligteki tüm oyunculara eşit LC yükler._",
+            parse_mode="Markdown")
+
+async def cmd_lc_id_yukle(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Virgülle ayrılmış ID listesine LC yükle. /lc_id_yukle <id1,id2,id3> <miktar>"""
+    if not is_admin(update.effective_user.id): return
+
+    if len(context.args) < 2:
+        return await update.message.reply_text(
+            "❌ *Kullanım:* `/lc_id_yukle <id1,id2,id3> <miktar>`\n\n"
+            "📌 *Örnekler:*\n"
+            "• `/lc_id_yukle 123456,789012 50000`\n"
+            "• `/lc_id_yukle 111,222,333,444 100000`\n\n"
+            "_ID\'leri virgülle ayır, araya boşluk koyma._",
+            parse_mode="Markdown")
+
+    try:
+        raw_ids = context.args[0].split(",")
+        amt = int(context.args[1])
+        if amt <= 0:
+            return await update.message.reply_text("❌ Miktar 0\'dan büyük olmalı.")
+    except (ValueError, IndexError):
+        return await update.message.reply_text("❌ Hatalı format. `/lc_id_yukle <id1,id2> <miktar>`", parse_mode="Markdown")
+
+    success_list = []
+    fail_list    = []
+    skip_list    = []
+
+    for raw in raw_ids:
+        raw = raw.strip()
+        if not raw:
+            continue
+        try:
+            tid = int(raw)
+        except ValueError:
+            fail_list.append(raw)
+            continue
+
+        team = db.get_team(tid)
+        if not team:
+            skip_list.append(str(tid))
+            continue
+
+        db.update_lc_balance(tid, amt)
+        tname = db.get_owner_username(tid)
+        new_bal = db.get_lc_balance(tid)
+        success_list.append(f"  ✅ *{tname}* (`{tid}`) → *+{amt:,} LC* _(yeni: {new_bal:,})_")
+
+    lines = [
+        f"💎 *TOPLU LC YÜKLEME SONUCU*",
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━",
+        f"💰 Yüklenen miktar: *{amt:,} LC* / kişi",
+        f"👥 Başarılı: *{len(success_list)}* | Hesap yok: *{len(skip_list)}* | Hatalı ID: *{len(fail_list)}*",
+        "",
+    ]
+
+    if success_list:
+        lines.append("✅ *Yüklenenler:*")
+        lines.extend(success_list)
+
+    if skip_list:
+        lines.append("")
+        lines.append(f"⚠️ *Lig hesabı yok (atlandı):* `{', '.join(skip_list)}`")
+
+    if fail_list:
+        lines.append(f"❌ *Geçersiz ID:* `{', '.join(fail_list)}`")
+
+    lines.append(f"\n💎 *Toplam dağıtılan:* *{amt * len(success_list):,} LC*")
+
+    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
 
 async def cmd_lc_kodolustur(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """LC hediye kodu oluştur."""
@@ -3568,11 +3725,159 @@ async def cmd_sezon_sifirla(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="Markdown")
 
     from datetime import datetime, timedelta
-    msg = await update.message.reply_text("⏳ *Sezon sıfırlanıyor...*", parse_mode="Markdown")
+    import random
 
-    # Manuel sıfırlama — her SQL ayrı transaction, hata olursa diğerlerini etkilemez
+    msg = await update.message.reply_text("⏳ *Sezon sıfırlanıyor, ödüller dağıtılıyor...*", parse_mode="Markdown")
+
+    # ─── SEZON ÖDÜL DAĞITIMI ───────────────────────────────────────────────
     from database import connect, ph
     p = ph()
+
+    rankings = db.get_all_teams_ranked()
+
+    # Ödül sistemi: ilk 3 → 300.000 LC sabit, geri kalan havuz → 150.000 LC paylaştırılır
+    TOP3_REWARD   = 300_000   # İlk 3'e sabit ödül
+    POOL_REWARD   = 150_000   # 4-10 arası paylaşılacak havuz
+    POOL_SLOTS    = list(range(4, 11))  # 4., 5., ... 10.
+
+    fixed_rewards = {1: TOP3_REWARD, 2: TOP3_REWARD, 3: TOP3_REWARD}
+    pool_per_team = POOL_REWARD // len(POOL_SLOTS) if rankings and len(rankings) >= len(POOL_SLOTS) else 0
+
+    medal_emojis = {1: "🥇", 2: "🥈", 3: "🥉"}
+
+    tebrik_mesajlari = [
+        "Harika bir sezon geçirdin, tebrikler! 🎉",
+        "Bu sezonki performansın müthişti! 🔥",
+        "Sahada bıraktığın ter boşa gitmedi! 💪",
+        "Ligde iz bıraktın, tebrikler! ⭐",
+        "Bir sonraki sezonda daha güçlü dön! 🚀",
+    ]
+
+    odul_text = (
+        f"╔══════════════════════════╗\n"
+        f"║  🏆  SEZON {season_no} ÖDÜLLER  ║\n"
+        f"╚══════════════════════════╝\n\n"
+        f"🎊 *Sezon sona erdi! Ödüller dağıtılıyor...*\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"💎 *FİNAL SIRALAMA & ÖDÜLLER*\n\n"
+    )
+
+    for i, t in enumerate(rankings[:10], 1):
+        uid_t, name, w, d, l, gf, ga, pts = t
+        username = db.get_owner_username(uid_t)
+
+        if i <= 3:
+            reward = fixed_rewards[i]
+        elif i in POOL_SLOTS:
+            reward = pool_per_team
+        else:
+            reward = 0
+
+        if reward > 0:
+            db.update_lc_balance(uid_t, reward)
+
+        em = medal_emojis.get(i, f"{i}.")
+        reward_str = f"*+{reward:,} LC* 💎" if reward > 0 else ""
+
+        if i == 1:
+            odul_text += (
+                f"{em} *{name}* — Şampiyon!\n"
+                f"   👤 {username} | {pts} puan\n"
+                f"   🏆 {reward_str}\n\n"
+            )
+        elif i <= 3:
+            odul_text += (
+                f"{em} *{name}*\n"
+                f"   👤 {username} | {pts} puan | {reward_str}\n\n"
+            )
+        else:
+            odul_text += f"{em} *{name}* — {pts} puan"
+            if reward > 0:
+                odul_text += f" | {reward_str}"
+            odul_text += "\n"
+
+    odul_text += (
+        f"\n━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"💰 İlk 3: *{TOP3_REWARD:,} LC* (her biri)\n"
+        f"🎁 4-10. arası: *{POOL_REWARD:,} LC* paylaşıldı\n"
+        f"   _(her takıma ~{pool_per_team:,} LC)_\n"
+    )
+
+    # Gol Kralı ödülü
+    try:
+        top_scorer = db.get_top_scorer()
+        if top_scorer:
+            scorer_uid, scorer_name, goals = top_scorer
+            db.update_lc_balance(scorer_uid, 100_000)
+            odul_text += (
+                f"\n⚽ *GOL KRALI:* _{scorer_name}_ ({goals} gol)\n"
+                f"   💎 *+100.000 LC* ödülü kazandı!\n"
+            )
+    except Exception as e:
+        print(f"[SEZON_SIFIRLA] gol kralı hatası: {e}")
+
+    # Sezon MVP ödülü
+    try:
+        season_mvp = db.get_season_mvp()
+        if season_mvp:
+            mvp_uid, mvp_name, mvp_count = season_mvp
+            db.update_lc_balance(mvp_uid, 75_000)
+            odul_text += (
+                f"\n⭐ *SEZON MVP:* _{mvp_name}_ ({mvp_count} kez)\n"
+                f"   💎 *+75.000 LC* ödülü kazandı!\n"
+            )
+    except Exception as e:
+        print(f"[SEZON_SIFIRLA] MVP hatası: {e}")
+
+    odul_text += f"\n🔄 *Yeni sezon başlıyor! Bol şans!*"
+
+    # Ödül mesajını gruba duyur
+    await _send_to_broadcast_chats(context, odul_text, category="lig")
+
+    # ─── KİŞİSEL TEBRİK MESAJLARI (ilk 3) ────────────────────────────────
+    for i, t in enumerate(rankings[:3], 1):
+        uid_t, name, w, d, l, gf, ga, pts = t
+        em = medal_emojis.get(i, f"{i}.")
+        tebrik = random.choice(tebrik_mesajlari)
+
+        if i == 1:
+            kisisel = (
+                f"🏆 *Tebrikler {name}!*\n\n"
+                f"Bu sezonun *ŞAMPİYONU* sensin! {em}\n\n"
+                f"📊 {w}G {d}B {l}M | {gf}-{ga} gol | {pts} puan\n"
+                f"💎 *+{TOP3_REWARD:,} LC* ödülün hesabına yatırıldı!\n\n"
+                f"_{tebrik}_\n\n"
+                f"💪 Bir sonraki sezonda da zirvede görüşürüz!"
+            )
+        elif i == 2:
+            kisisel = (
+                f"🥈 *Tebrikler {name}!*\n\n"
+                f"Bu sezon *2. oldun!* Harika bir performans!\n\n"
+                f"📊 {w}G {d}B {l}M | {gf}-{ga} gol | {pts} puan\n"
+                f"💎 *+{TOP3_REWARD:,} LC* ödülün hesabına yatırıldı!\n\n"
+                f"_{tebrik}_\n\n"
+                f"🔥 Bir sonraki sezon şampiyonluk senin!"
+            )
+        else:
+            kisisel = (
+                f"🥉 *Tebrikler {name}!*\n\n"
+                f"Bu sezon *3. oldun!* Podyuma çıkmayı başardın!\n\n"
+                f"📊 {w}G {d}B {l}M | {gf}-{ga} gol | {pts} puan\n"
+                f"💎 *+{TOP3_REWARD:,} LC* ödülün hesabına yatırıldı!\n\n"
+                f"_{tebrik}_\n\n"
+                f"💪 Bir sonraki sezon daha yükseğe çık!"
+            )
+
+        try:
+            await context.bot.send_message(
+                chat_id=uid_t,
+                text=kisisel,
+                parse_mode="Markdown"
+            )
+        except Exception as e:
+            print(f"[SEZON_SIFIRLA] Kişisel tebrik gönderilemedi (uid={uid_t}): {e}")
+
+    # ─── SIFIRLAMA BAŞLADI ────────────────────────────────────────────────
     new_start = datetime.now()
     new_end = new_start + timedelta(days=30)
 
@@ -3642,15 +3947,24 @@ async def cmd_sezon_sifirla(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"💡 `/fikstur` ile gör!",
                 parse_mode="Markdown")
 
-            # Gruba duyuru
+            # Gruba duyuru — yeni sezon başlangıç duyurusu
             duyuru = (
-                f"╔══════════════════════╗\n"
-                f"║ 🔄 SEZON {season_no} YENİDEN BAŞLADI! ║\n"
-                f"╚══════════════════════╝\n\n"
-                f"📊 Tüm puanlar sıfırlandı!\n"
-                f"🏆 Şampiyonluk yarışı tekrar başladı!\n"
-                f"⚽ Yeni fikstür: *{count} maç*\n\n"
-                f"💪 İyi şanslar Budunlular!"
+                f"╔══════════════════════════╗\n"
+                f"║  🔄  YENİ SEZON BAŞLADI!  ║\n"
+                f"╚══════════════════════════╝\n\n"
+                f"🏆 *Sezon {season_no}* resmen başladı!\n\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"✅ Tüm puanlar sıfırlandı\n"
+                f"⚽ Yeni fikstür: *{count} maç* oluşturuldu\n"
+                f"👥 *{len(teams)}* takım yarışıyor\n\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"💎 *BU SEZONUN ÖDÜLLERİ:*\n"
+                f"🥇 1. → *300.000 LC*\n"
+                f"🥈 2. → *300.000 LC*\n"
+                f"🥉 3. → *300.000 LC*\n"
+                f"🎁 4-10. → *150.000 LC* paylaştırılır\n\n"
+                f"💪 *Haydi mücadele başlasın!*\n"
+                f"📋 `/fikstur` ile maçlarını gör!"
             )
             await _send_to_broadcast_chats(context, duyuru, category="lig")
         else:
@@ -4351,6 +4665,7 @@ def main():
         ("lc_yukle",        cmd_lc_yukle),
         ("lc_dusur",        cmd_lc_dusur),
         ("lc_toplu_yukle",  cmd_lc_toplu_yukle),
+        ("lc_id_yukle",     cmd_lc_id_yukle),
         ("lc_kodolustur",   cmd_lc_kodolustur),
         ("terfi_dusme",     cmd_terfi_dusme),
         ("fikstur_olustur", cmd_fikstur_olustur),
