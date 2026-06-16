@@ -1716,7 +1716,7 @@ def _add_player_columns():
 _player_cols_added = False
 
 def get_squad_detailed(user_id: int):
-    """Kadronun detaylı bilgisi (rating, form, sakatlık)."""
+    """Kadronun detaylı bilgisi (rating, form, sakatlık, is_starter)."""
     global _player_cols_added
     if not _player_cols_added:
         _add_player_columns()
@@ -1725,7 +1725,7 @@ def get_squad_detailed(user_id: int):
     with connect() as conn:
         cur = conn.cursor()
         cur.execute(f"""
-            SELECT player_name, rating, base_rating, pos, form, injury_matches
+            SELECT player_name, rating, base_rating, pos, is_starter, form, injury_matches
             FROM lig_squad WHERE user_id={p} ORDER BY rating DESC
         """, (user_id,))
         return fetchall(cur)

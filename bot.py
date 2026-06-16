@@ -2173,7 +2173,7 @@ async def cmd_takim_kur(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return await update.message.reply_text(
             "⚠️ *Bot sana DM atamıyor!*\n\n"
             "Takımını kurabilmen için önce bota özel mesaj atman gerek:\n\n"
-            "1️⃣ @cmhryteglencebot yaz\n"
+            "1️⃣ @ligeglencebot yaz\n"
             "2️⃣ */start* komutuyla bot'u aç\n"
             "3️⃣ Sonra buraya gel, tekrar `/takim_kur` yaz\n\n"
             "_Bu zorunlu çünkü maç hatırlatmaları, sakatlık bildirimleri vs. DM olarak gelir._",
@@ -2236,7 +2236,7 @@ async def cmd_takimim(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Detaylı kadro (form + sakatlık)
     detailed = db.get_squad_detailed(uid)
-    detail_map = {d[0]: d for d in detailed}  # name -> (name, rating, base_rating, pos, form, injury)
+    detail_map = {d[0]: d for d in detailed}  # name -> (name, rating, base_rating, pos, is_starter, form, injury)
 
     text = f"📋 *{name}* — Kadro ({len(squad)}/15)\n"
     text += f"📐 Formasyon: *{formation}* | 💎 *{lc:,} LC*\n\n"
@@ -2250,7 +2250,7 @@ async def cmd_takimim(update: Update, context: ContextTypes.DEFAULT_TYPE):
             d = detail_map.get(p_name)
             extras = ""
             if d:
-                _, _, base_r, _, form, injury = d
+                _, _, base_r, _, _, form, injury = d
                 if injury > 0:
                     extras = f" 🚑 *{injury} maç*"
                 elif form >= 3:
@@ -5678,7 +5678,7 @@ async def cmd_form(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Pozisyona göre grupla
     by_pos = {"GK": [], "DEF": [], "MID": [], "FWD": []}
     for d in detailed:
-        pname, rating, base_rating, pos, form, injury = d
+        pname, rating, base_rating, pos, _starter, form, injury = d
         if pos in by_pos:
             by_pos[pos].append(d)
 
@@ -5687,7 +5687,7 @@ async def cmd_form(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not players: continue
         text += f"{pos_em[pos]} *{pos}*\n"
         for d in players:
-            pname, rating, base_rating, pos, form, injury = d
+            pname, rating, base_rating, pos, _starter, form, injury = d
             # Form emoji
             if injury > 0:
                 form_em = f"🚑 {injury} maç"
